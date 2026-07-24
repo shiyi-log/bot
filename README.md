@@ -14,3 +14,7 @@
 准备 Python 环境、MySQL/Redis 和项目配置后，先执行 Django 迁移并启动管理服务，再运行 `python run.py` 或 `python worker.py`。
 
 仓库当前未提供依赖锁定文件。部署前应补充依赖清单，并将 Bot Token、数据库密码、Redis 密码和服务地址迁移到环境变量。
+
+## 系统如何工作
+
+Django 中的 `Worker`、`Bot`、`BotConfig`、`BotUser` 和键盘模型保存节点、机器人及交互配置。工作节点通过 HTTP 注册并周期上报心跳，服务端按在线状态分配 Bot；`worker.py` 拉取本节点分配结果并通知运行进程。`core/bot_runner.py` 将数据库 Token 同步到 Redis，按差异启动或停止 aiogram Bot。消息中间件记录用户并把消息转发给创建者，键盘配置被缓存到 Redis，通过订阅刷新，避免每条消息查询数据库。调度器会重新分配离线节点上的 Bot。
