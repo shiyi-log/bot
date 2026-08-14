@@ -1,0 +1,38 @@
+{
+  "name": "@vben/vsh",
+  "version": "5.7.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "stub": "pnpm exec tsdown"
+  },
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "vsh": "./bin/vsh.mjs"
+  },
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "exports": {
+    ".": {
+      "default": "./dist/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@vben/node-utils": "workspace:*",
+    "cac": "catalog:",
+    "circular-dependency-scanner": "catalog:",
+    "depcheck": "catalog:",
+    "publint": "catalog:"
+  },
+  "homepage": "https://github.com/shiyi-log/vue-shop-admin/tree/main/scripts/vsh",
+  "bugs": "https://github.com/shiyi-log/vue-shop-admin/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shiyi-log/vue-shop-admin.git",
+    "directory": "scripts/vsh"
+  }
+}

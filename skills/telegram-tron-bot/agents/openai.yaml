@@ -1,0 +1,4 @@
+interface:
+  display_name: "Telegram TRON Bot"
+  short_description: "维护 Django、Vben、Telegram 与 TRON 机器人模板"
+  default_prompt: "Use $telegram-tron-bot to develop and verify the Telegram TRON bot template."

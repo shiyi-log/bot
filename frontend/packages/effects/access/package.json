@@ -1,0 +1,29 @@
+{
+  "name": "@vben/access",
+  "version": "5.7.0",
+  "homepage": "https://github.com/shiyi-log/vue-shop-admin/tree/main/packages/effects/access",
+  "bugs": "https://github.com/shiyi-log/vue-shop-admin/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shiyi-log/vue-shop-admin.git",
+    "directory": "packages/effects/access"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@vben/preferences": "workspace:*",
+    "@vben/stores": "workspace:*",
+    "@vben/types": "workspace:*",
+    "@vben/utils": "workspace:*",
+    "vue": "catalog:"
+  }
+}
