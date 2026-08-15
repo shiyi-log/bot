@@ -8,7 +8,14 @@ from typing import Any, Protocol
 
 from django.db.models import F
 
-from botcore.models import BotSettings, TelegramGroup, TelegramUser
+from botcore.models import BotSettings, TelegramGroup, TelegramGroupMember, TelegramUser
+
+
+MEMBER_MESSAGE_FIELDS = {
+    "animation", "audio", "caption", "contact", "dice", "document", "game",
+    "location", "photo", "poll", "sticker", "story", "text", "venue", "video",
+    "video_note", "voice",
+}
 
 
 class TelegramTransport(Protocol):
@@ -80,6 +87,31 @@ def _persist_group(chat: dict[str, Any]) -> TelegramGroup | None:
     return group
 
 
+def _persist_group_member(
+    message: dict[str, Any],
+    group: TelegramGroup | None,
+    user: TelegramUser,
+    sender: dict[str, Any],
+) -> TelegramGroupMember | None:
+    if not group or group.group_type not in {TelegramGroup.GroupType.GROUP, TelegramGroup.GroupType.SUPERGROUP}:
+        return None
+    if message.get("sender_chat") or not MEMBER_MESSAGE_FIELDS.intersection(message):
+        return None
+
+    member, _ = TelegramGroupMember.objects.update_or_create(
+        group=group,
+        user=user,
+        defaults={
+            "username": sender.get("username", ""),
+            "first_name": sender.get("first_name", ""),
+            "last_name": sender.get("last_name", ""),
+        },
+    )
+    TelegramGroupMember.objects.filter(pk=member.pk).update(message_count=F("message_count") + 1)
+    member.refresh_from_db()
+    return member
+
+
 def _render_welcome(template: str, user: dict[str, Any], chat: dict[str, Any]) -> str:
     values = {
         "first_name": user.get("first_name", "") or user.get("username", "") or str(user.get("id", "")),
@@ -105,6 +137,7 @@ def handle_update(update: dict[str, Any], transport: TelegramTransport) -> Updat
 
     user, first_interaction = _persist_user(sender)
     group = _persist_group(chat)
+    _persist_group_member(message, group, user, sender)
     settings = BotSettings.load()
     replies = 0
     text = (message.get("text") or "").split("@", 1)[0].strip().lower()

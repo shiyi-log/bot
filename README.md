@@ -6,6 +6,7 @@
 
 - Telegram `/start`、`/id`、`/chatid`，首次私聊及新成员入群欢迎
 - Telegram 用户与群组公开信息持久化、搜索、分页和列表展示
+- 群组成员仅在群组内发言时采集，用户名和姓名随下一次发言动态更新
 - TRON 地址合法性校验、余额/最近交易轮询、逐地址错误隔离
 - Vben 用户列表、群组列表、TRON 地址管理、机器人设置页面
 - 默认关闭 Telegram/TRON 真实网络访问，缺少显式开关或凭据时拒绝运行
@@ -51,4 +52,4 @@ pnpm --filter @vben/web-antd typecheck
 pnpm --filter @vben/web-antd build
 ```
 
-接口契约见 `docs/backend-api.md`。当前前端使用本地开放身份、API 使用 `AllowAny` 以便模板直接运行；部署生产环境前必须同时替换为正式认证与权限策略。
+接口契约见 `docs/backend-api.md`。群组成员采集只处理群组或超级群组中的普通内容消息；入群事件、私聊、频道消息和匿名管理员消息不会创建成员记录。当前前端使用本地开放身份、API 使用 `AllowAny` 以便模板直接运行；部署生产环境前必须同时替换为正式认证与权限策略。

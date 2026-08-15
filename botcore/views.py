@@ -1,12 +1,13 @@
-from django.db.models import Sum
+from django.db.models import Count, Sum
 from django.utils import timezone
 from rest_framework import generics, viewsets
 from rest_framework.response import Response
 
-from .models import BotSettings, TelegramGroup, TelegramUser, TronAddress
+from .models import BotSettings, TelegramGroup, TelegramGroupMember, TelegramUser, TronAddress
 from .serializers import (
     BotSettingsSerializer,
     TelegramGroupSerializer,
+    TelegramGroupMemberSerializer,
     TelegramUserSerializer,
     TronAddressSerializer,
 )
@@ -46,11 +47,27 @@ class TelegramUserViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class TelegramGroupViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = TelegramGroup.objects.all()
+    queryset = TelegramGroup.objects.annotate(member_count=Count("members")).order_by("-last_seen_at")
     serializer_class = TelegramGroupSerializer
     filterset_fields = ["is_active", "group_type"]
     search_fields = ["telegram_id", "title", "username"]
     ordering_fields = ["telegram_id", "first_seen_at", "last_seen_at", "message_count"]
+
+
+class TelegramGroupMemberViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = TelegramGroupMember.objects.select_related("group", "user")
+    serializer_class = TelegramGroupMemberSerializer
+    filterset_fields = {
+        "group": ["exact"],
+        "group__telegram_id": ["exact"],
+        "user": ["exact"],
+        "user__telegram_id": ["exact"],
+    }
+    search_fields = [
+        "group__telegram_id", "group__title", "user__telegram_id",
+        "username", "first_name", "last_name",
+    ]
+    ordering_fields = ["first_spoke_at", "last_spoke_at", "message_count"]
 
 
 class TronAddressViewSet(viewsets.ModelViewSet):

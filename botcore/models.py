@@ -42,6 +42,30 @@ class TelegramGroup(models.Model):
         return self.title or str(self.telegram_id)
 
 
+class TelegramGroupMember(models.Model):
+    group = models.ForeignKey(TelegramGroup, on_delete=models.CASCADE, related_name="members")
+    user = models.ForeignKey(TelegramUser, on_delete=models.CASCADE, related_name="group_memberships")
+    username = models.CharField(max_length=64, blank=True)
+    first_name = models.CharField(max_length=128, blank=True)
+    last_name = models.CharField(max_length=128, blank=True)
+    message_count = models.PositiveIntegerField(default=0)
+    first_spoke_at = models.DateTimeField(auto_now_add=True)
+    last_spoke_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-last_spoke_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["group", "user"], name="unique_telegram_group_member"),
+        ]
+        indexes = [
+            models.Index(fields=["group", "last_spoke_at"], name="tg_member_group_last_idx"),
+            models.Index(fields=["user", "last_spoke_at"], name="tg_member_user_last_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.group} / {self.user}"
+
+
 class BotSettings(models.Model):
     singleton_key = models.PositiveSmallIntegerField(default=1, unique=True, editable=False)
     bot_enabled = models.BooleanField(default=False)

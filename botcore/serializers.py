@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import BotSettings, TelegramGroup, TelegramUser, TronAddress
+from .models import BotSettings, TelegramGroup, TelegramGroupMember, TelegramUser, TronAddress
 from .services.tron import is_valid_tron_address
 
 
@@ -20,11 +20,27 @@ class TelegramUserSerializer(serializers.ModelSerializer):
 
 
 class TelegramGroupSerializer(serializers.ModelSerializer):
+    member_count = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = TelegramGroup
         fields = [
             "id", "telegram_id", "title", "username", "group_type", "is_active",
-            "message_count", "first_seen_at", "last_seen_at",
+            "message_count", "member_count", "first_seen_at", "last_seen_at",
+        ]
+        read_only_fields = fields
+
+
+class TelegramGroupMemberSerializer(serializers.ModelSerializer):
+    group_telegram_id = serializers.IntegerField(source="group.telegram_id", read_only=True)
+    group_title = serializers.CharField(source="group.title", read_only=True)
+    telegram_user_id = serializers.IntegerField(source="user.telegram_id", read_only=True)
+
+    class Meta:
+        model = TelegramGroupMember
+        fields = [
+            "id", "group", "group_telegram_id", "group_title", "user", "telegram_user_id",
+            "username", "first_name", "last_name", "message_count", "first_spoke_at", "last_spoke_at",
         ]
         read_only_fields = fields
 

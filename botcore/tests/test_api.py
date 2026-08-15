@@ -1,7 +1,7 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from botcore.models import TelegramGroup, TelegramUser
+from botcore.models import TelegramGroup, TelegramGroupMember, TelegramUser
 
 VALID_ADDRESS = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
 
@@ -40,3 +40,23 @@ class ApiContractTests(TestCase):
         invalid = self.client.post("/api/tron/addresses/", {"address": "T" + "x" * 33}, format="json")
         self.assertEqual(invalid.status_code, 400)
         self.assertEqual(self.client.delete(f"/api/tron/addresses/{address_id}/").status_code, 204)
+
+    def test_group_member_list_can_be_filtered_by_group(self):
+        user = TelegramUser.objects.create(telegram_id=100, username="speaker")
+        group = TelegramGroup.objects.create(telegram_id=-100, title="Group", group_type="supergroup")
+        TelegramGroupMember.objects.create(
+            group=group,
+            user=user,
+            username="speaker",
+            first_name="Speaker",
+            message_count=3,
+        )
+
+        response = self.client.get("/api/members/", {"group": group.id})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["telegram_user_id"], 100)
+        self.assertEqual(response.data["results"][0]["group_telegram_id"], -100)
+
+        groups = self.client.get("/api/groups/")
+        self.assertEqual(groups.data["results"][0]["member_count"], 1)

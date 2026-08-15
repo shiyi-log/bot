@@ -22,6 +22,12 @@ const routes: RouteRecordRaw[] = [
         meta: { icon: MessageCircle, title: '群组列表' },
       },
       {
+        name: 'TelegramGroupMembers',
+        path: 'telegram-group-members',
+        component: () => import('#/views/telegram/group-members/index.vue'),
+        meta: { icon: Users, title: '群组成员' },
+      },
+      {
         name: 'TronAddresses',
         path: 'tron-addresses',
         component: () => import('#/views/telegram/tron-addresses/index.vue'),

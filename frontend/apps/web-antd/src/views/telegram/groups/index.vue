@@ -4,6 +4,7 @@ import type { TableColumnsType, TablePaginationConfig } from 'ant-design-vue';
 import type { TelegramGroup } from '#/api/telegram';
 
 import { onMounted, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { Page } from '@vben/common-ui';
 
@@ -13,6 +14,7 @@ import dayjs from 'dayjs';
 import { getTelegramGroupsApi } from '#/api/telegram';
 
 const loading = ref(false);
+const router = useRouter();
 const keyword = ref('');
 const items = ref<TelegramGroup[]>([]);
 const pagination = reactive({ page: 1, pageSize: 20, total: 0 });
@@ -34,6 +36,7 @@ const columns: TableColumnsType<TelegramGroup> = [
     width: 100,
   },
   { title: '状态', dataIndex: 'is_active', key: 'is_active', width: 100 },
+  { title: '成员数', dataIndex: 'member_count', key: 'member_count', width: 100 },
   {
     title: '首次出现',
     dataIndex: 'first_seen_at',
@@ -46,6 +49,7 @@ const columns: TableColumnsType<TelegramGroup> = [
     key: 'last_seen_at',
     width: 180,
   },
+  { title: '操作', key: 'action', fixed: 'right', width: 110 },
 ];
 
 const groupTypeLabels: Record<string, string> = {
@@ -90,6 +94,13 @@ function handleTableChange(next: TablePaginationConfig) {
   loadData();
 }
 
+function viewMembers(record: Pick<TelegramGroup, 'id'>) {
+  router.push({
+    path: '/admin/telegram-group-members',
+    query: { group: String(record.id) },
+  });
+}
+
 onMounted(loadData);
 </script>
 
@@ -128,7 +139,7 @@ onMounted(loadData);
           showTotal: (total: number) => `共 ${total} 条`,
         }"
         row-key="id"
-        :scroll="{ x: 1300 }"
+        :scroll="{ x: 1450 }"
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">
@@ -144,6 +155,11 @@ onMounted(loadData);
             <Tag :color="record.is_active ? 'success' : 'default'">
               {{ record.is_active ? '活跃' : '停用' }}
             </Tag>
+          </template>
+          <template v-else-if="column.key === 'action'">
+            <Button size="small" type="link" @click="viewMembers(record)">
+              查看成员
+            </Button>
           </template>
           <template
             v-else-if="

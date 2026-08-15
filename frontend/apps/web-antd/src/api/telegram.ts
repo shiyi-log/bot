@@ -12,6 +12,7 @@ export interface BotSettings {
 export type BotSettingsUpdate = Omit<BotSettings, 'updated_at'>;
 
 export interface TelegramListQuery {
+  group?: number;
   page?: number;
   page_size?: number;
   search?: string;
@@ -45,8 +46,24 @@ export interface TelegramGroup {
   is_active: boolean;
   last_seen_at: null | string;
   message_count: number;
+  member_count: number;
   telegram_id: number | string;
   title: string;
+  username: string;
+}
+
+export interface TelegramGroupMember {
+  first_name: string;
+  first_spoke_at: string;
+  group: number;
+  group_telegram_id: number | string;
+  group_title: string;
+  id: number;
+  last_name: string;
+  last_spoke_at: string;
+  message_count: number;
+  telegram_user_id: number | string;
+  user: number;
   username: string;
 }
 
@@ -91,6 +108,13 @@ export function getTelegramGroupsApi(params: TelegramListQuery) {
   return requestClient.get<DrfPaginatedResponse<TelegramGroup>>('/groups/', {
     params,
   });
+}
+
+export function getTelegramGroupMembersApi(params: TelegramListQuery) {
+  return requestClient.get<DrfPaginatedResponse<TelegramGroupMember>>(
+    '/members/',
+    { params },
+  );
 }
 
 export function getTronAddressesApi(params: TelegramListQuery) {
