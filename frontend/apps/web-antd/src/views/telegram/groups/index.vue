@@ -36,7 +36,12 @@ const columns: TableColumnsType<TelegramGroup> = [
     width: 100,
   },
   { title: '状态', dataIndex: 'is_active', key: 'is_active', width: 100 },
-  { title: '成员数', dataIndex: 'member_count', key: 'member_count', width: 100 },
+  {
+    title: '成员数',
+    dataIndex: 'member_count',
+    key: 'member_count',
+    width: 100,
+  },
   {
     title: '首次出现',
     dataIndex: 'first_seen_at',
@@ -94,7 +99,7 @@ function handleTableChange(next: TablePaginationConfig) {
   loadData();
 }
 
-function viewMembers(record: Pick<TelegramGroup, 'id'>) {
+function viewMembers(record: Record<string, any>) {
   router.push({
     path: '/admin/telegram-group-members',
     query: { group: String(record.id) },

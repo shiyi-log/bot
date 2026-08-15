@@ -1,6 +1,12 @@
 import type { RouteRecordRaw } from 'vue-router';
 
-import { MessageCircle, Settings2, Users } from '@vben/icons';
+import {
+  Grid,
+  MessageCircle,
+  MessageSquareCode,
+  Settings2,
+  Users,
+} from '@vben/icons';
 
 const routes: RouteRecordRaw[] = [
   {
@@ -28,6 +34,18 @@ const routes: RouteRecordRaw[] = [
         meta: { icon: Users, title: '群组成员' },
       },
       {
+        name: 'TelegramBots',
+        path: 'telegram-bots',
+        component: () => import('#/views/telegram/bots/index.vue'),
+        meta: { icon: MessageSquareCode, title: '机器人管理' },
+      },
+      {
+        name: 'TelegramBotButtons',
+        path: 'telegram-buttons',
+        component: () => import('#/views/telegram/buttons/index.vue'),
+        meta: { icon: Grid, title: '按钮设置' },
+      },
+      {
         name: 'TronAddresses',
         path: 'tron-addresses',
         component: () => import('#/views/telegram/tron-addresses/index.vue'),
@@ -37,7 +55,7 @@ const routes: RouteRecordRaw[] = [
         name: 'TelegramBotSettings',
         path: 'settings',
         component: () => import('#/views/telegram/settings/index.vue'),
-        meta: { icon: Settings2, title: '机器人设置' },
+        meta: { icon: Settings2, title: '运行设置' },
       },
     ],
   },

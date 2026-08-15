@@ -4,11 +4,12 @@
 
 ## 已实现
 
+- 多机器人独立启停、欢迎文案与 URL 按钮配置
 - Telegram `/start`、`/id`、`/chatid`，首次私聊及新成员入群欢迎
 - Telegram 用户与群组公开信息持久化、搜索、分页和列表展示
 - 群组成员仅在群组内发言时采集，用户名和姓名随下一次发言动态更新
 - TRON 地址合法性校验、余额/最近交易轮询、逐地址错误隔离
-- Vben 用户列表、群组列表、TRON 地址管理、机器人设置页面
+- Vben 机器人、按钮、用户、群组、群组成员、TRON 地址和运行设置页面
 - 默认关闭 Telegram/TRON 真实网络访问，缺少显式开关或凭据时拒绝运行
 - 项目专属技能：`skills/telegram-tron-bot/`
 
@@ -32,14 +33,15 @@ pnpm --filter @vben/web-antd dev --host 127.0.0.1
 
 ## 机器人与监控
 
-复制 `.env.example` 为 `.env` 并填写本地凭据。真实网络功能仍需后台设置和环境变量同时开启：
+复制 `.env.example` 为 `.env`，为每个机器人填写其后台配置的令牌环境变量。数据库只保存环境变量名，不保存令牌值。真实网络功能仍需后台启用机器人并显式开启环境变量：
 
 ```bash
 ENABLE_TELEGRAM_NETWORK=1 uv run python manage.py run_bot
+ENABLE_TELEGRAM_NETWORK=1 uv run python manage.py run_bot --bot-id 2
 ENABLE_TRON_NETWORK=1 uv run python manage.py monitor_tron
 ```
 
-两个命令均支持 `--once`。TRON 功能仅进行只读查询，不包含私钥、签名、转账或支付执行。
+`run_bot` 默认并发运行全部已启用且凭据已配置的机器人，`--bot-id` 可重复指定多个机器人；两个命令均支持 `--once`。按钮为 URL 类型的 Telegram 内联键盘，仅随 `/start`、首次私聊欢迎和新成员欢迎发送。TRON 功能仅进行只读查询，不包含私钥、签名、转账或支付执行。
 
 ## 验证
 

@@ -1,7 +1,7 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from botcore.models import TelegramGroup, TelegramGroupMember, TelegramUser
+from botcore.models import TelegramBot, TelegramGroup, TelegramGroupMember, TelegramUser
 
 VALID_ADDRESS = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
 
@@ -13,9 +13,10 @@ class ApiContractTests(TestCase):
     def test_settings_get_and_patch(self):
         response = self.client.get("/api/settings/")
         self.assertEqual(response.status_code, 200)
-        response = self.client.patch("/api/settings/", {"welcome_message": "Welcome {first_name}"}, format="json")
+        response = self.client.patch("/api/settings/", {"tron_poll_interval": 45}, format="json")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["welcome_message"], "Welcome {first_name}")
+        self.assertEqual(response.data["tron_poll_interval"], 45)
+        self.assertNotIn("welcome_message", response.data)
 
     def test_user_filter_group_list_and_dashboard(self):
         TelegramUser.objects.create(telegram_id=10, username="active", is_active=True)
@@ -44,7 +45,9 @@ class ApiContractTests(TestCase):
     def test_group_member_list_can_be_filtered_by_group(self):
         user = TelegramUser.objects.create(telegram_id=100, username="speaker")
         group = TelegramGroup.objects.create(telegram_id=-100, title="Group", group_type="supergroup")
+        bot = TelegramBot.objects.create(name="Main", token_env_var="MAIN_BOT_TOKEN")
         TelegramGroupMember.objects.create(
+            bot=bot,
             group=group,
             user=user,
             username="speaker",
@@ -57,6 +60,32 @@ class ApiContractTests(TestCase):
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["telegram_user_id"], 100)
         self.assertEqual(response.data["results"][0]["group_telegram_id"], -100)
+        self.assertEqual(response.data["results"][0]["bot_name"], "Main")
 
         groups = self.client.get("/api/groups/")
         self.assertEqual(groups.data["results"][0]["member_count"], 1)
+
+    def test_bot_and_button_crud_do_not_expose_token_values(self):
+        created = self.client.post("/api/bots/", {
+            "name": "Support",
+            "token_env_var": "SUPPORT_BOT_TOKEN",
+            "enabled": True,
+            "welcome_message": "Hi {first_name}",
+        }, format="json")
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.data["button_count"], 0)
+        self.assertNotIn("token", created.data)
+        self.assertEqual(created.data["token_env_var"], "SUPPORT_BOT_TOKEN")
+
+        button = self.client.post("/api/bot-buttons/", {
+            "bot": created.data["id"],
+            "text": "Help",
+            "url": "https://example.com/help",
+            "row": 1,
+            "position": 1,
+            "enabled": True,
+        }, format="json")
+        self.assertEqual(button.status_code, 201)
+        listed = self.client.get("/api/bot-buttons/", {"bot": created.data["id"]})
+        self.assertEqual(listed.data["count"], 1)
+        self.assertEqual(listed.data["results"][0]["text"], "Help")

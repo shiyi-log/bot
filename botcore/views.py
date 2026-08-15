@@ -3,9 +3,19 @@ from django.utils import timezone
 from rest_framework import generics, viewsets
 from rest_framework.response import Response
 
-from .models import BotSettings, TelegramGroup, TelegramGroupMember, TelegramUser, TronAddress
+from .models import (
+    BotSettings,
+    TelegramBot,
+    TelegramBotButton,
+    TelegramGroup,
+    TelegramGroupMember,
+    TelegramUser,
+    TronAddress,
+)
 from .serializers import (
     BotSettingsSerializer,
+    TelegramBotButtonSerializer,
+    TelegramBotSerializer,
     TelegramGroupSerializer,
     TelegramGroupMemberSerializer,
     TelegramUserSerializer,
@@ -24,7 +34,8 @@ class DashboardSummaryView(generics.GenericAPIView):
             "active_tron_addresses": TronAddress.objects.filter(enabled=True).count(),
             "total_balance_sun": TronAddress.objects.filter(enabled=True).aggregate(total=Sum("balance_sun"))["total"] or 0,
             "tron_errors": TronAddress.objects.filter(enabled=True, status=TronAddress.Status.ERROR).count(),
-            "bot_enabled": settings.bot_enabled,
+            "bot_enabled": TelegramBot.objects.filter(enabled=True).exists(),
+            "telegram_bots": TelegramBot.objects.count(),
             "tron_monitor_enabled": settings.tron_monitor_enabled,
             "generated_at": timezone.now(),
         })
@@ -47,7 +58,9 @@ class TelegramUserViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class TelegramGroupViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = TelegramGroup.objects.annotate(member_count=Count("members")).order_by("-last_seen_at")
+    queryset = TelegramGroup.objects.annotate(
+        member_count=Count("members__user", distinct=True),
+    ).order_by("-last_seen_at")
     serializer_class = TelegramGroupSerializer
     filterset_fields = ["is_active", "group_type"]
     search_fields = ["telegram_id", "title", "username"]
@@ -55,9 +68,10 @@ class TelegramGroupViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class TelegramGroupMemberViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = TelegramGroupMember.objects.select_related("group", "user")
+    queryset = TelegramGroupMember.objects.select_related("bot", "group", "user")
     serializer_class = TelegramGroupMemberSerializer
     filterset_fields = {
+        "bot": ["exact"],
         "group": ["exact"],
         "group__telegram_id": ["exact"],
         "user": ["exact"],
@@ -68,6 +82,22 @@ class TelegramGroupMemberViewSet(viewsets.ReadOnlyModelViewSet):
         "username", "first_name", "last_name",
     ]
     ordering_fields = ["first_spoke_at", "last_spoke_at", "message_count"]
+
+
+class TelegramBotViewSet(viewsets.ModelViewSet):
+    queryset = TelegramBot.objects.annotate(button_count=Count("buttons")).order_by("name", "id")
+    serializer_class = TelegramBotSerializer
+    filterset_fields = ["enabled"]
+    search_fields = ["name", "username", "telegram_id", "token_env_var"]
+    ordering_fields = ["name", "created_at", "updated_at"]
+
+
+class TelegramBotButtonViewSet(viewsets.ModelViewSet):
+    queryset = TelegramBotButton.objects.select_related("bot")
+    serializer_class = TelegramBotButtonSerializer
+    filterset_fields = ["bot", "enabled"]
+    search_fields = ["text", "url", "bot__name"]
+    ordering_fields = ["row", "position", "created_at", "updated_at"]
 
 
 class TronAddressViewSet(viewsets.ModelViewSet):

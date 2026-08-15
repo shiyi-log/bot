@@ -4,6 +4,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     BotSettingsView,
     DashboardSummaryView,
+    TelegramBotButtonViewSet,
+    TelegramBotViewSet,
     TelegramGroupMemberViewSet,
     TelegramGroupViewSet,
     TelegramUserViewSet,
@@ -11,6 +13,8 @@ from .views import (
 )
 
 router = DefaultRouter()
+router.register("bots", TelegramBotViewSet, basename="telegram-bot")
+router.register("bot-buttons", TelegramBotButtonViewSet, basename="telegram-bot-button")
 router.register("users", TelegramUserViewSet, basename="telegram-user")
 router.register("groups", TelegramGroupViewSet, basename="telegram-group")
 router.register("members", TelegramGroupMemberViewSet, basename="telegram-group-member")

@@ -1,17 +1,16 @@
 import { requestClient } from '#/api/request';
 
 export interface BotSettings {
-  bot_enabled: boolean;
   tron_monitor_enabled: boolean;
   tron_poll_interval: number;
   updated_at: null | string;
-  welcome_enabled: boolean;
-  welcome_message: string;
 }
 
 export type BotSettingsUpdate = Omit<BotSettings, 'updated_at'>;
 
 export interface TelegramListQuery {
+  bot?: number;
+  enabled?: boolean;
   group?: number;
   page?: number;
   page_size?: number;
@@ -53,6 +52,8 @@ export interface TelegramGroup {
 }
 
 export interface TelegramGroupMember {
+  bot: number;
+  bot_name: string;
   first_name: string;
   first_spoke_at: string;
   group: number;
@@ -65,6 +66,53 @@ export interface TelegramGroupMember {
   telegram_user_id: number | string;
   user: number;
   username: string;
+}
+
+export interface TelegramBot {
+  button_count: number;
+  created_at: string;
+  credential_configured: boolean;
+  enabled: boolean;
+  id: number;
+  name: string;
+  telegram_id: null | number | string;
+  token_env_var: string;
+  updated_at: string;
+  username: string;
+  welcome_enabled: boolean;
+  welcome_message: string;
+}
+
+export interface TelegramBotPayload {
+  enabled: boolean;
+  name: string;
+  telegram_id: null | number | string;
+  token_env_var: string;
+  username: string;
+  welcome_enabled: boolean;
+  welcome_message: string;
+}
+
+export interface TelegramBotButton {
+  bot: number;
+  bot_name: string;
+  created_at: string;
+  enabled: boolean;
+  id: number;
+  position: number;
+  row: number;
+  text: string;
+  updated_at: string;
+  url: string;
+}
+
+export interface TelegramBotButtonPayload {
+  bot: number;
+  enabled: boolean;
+  position: number;
+  row: number;
+  text: string;
+  url: string;
 }
 
 export interface TronAddress {
@@ -115,6 +163,52 @@ export function getTelegramGroupMembersApi(params: TelegramListQuery) {
     '/members/',
     { params },
   );
+}
+
+export function getTelegramBotsApi(params: TelegramListQuery = {}) {
+  return requestClient.get<DrfPaginatedResponse<TelegramBot>>('/bots/', {
+    params,
+  });
+}
+
+export function createTelegramBotApi(payload: TelegramBotPayload) {
+  return requestClient.post<TelegramBot>('/bots/', payload);
+}
+
+export function updateTelegramBotApi(id: number, payload: TelegramBotPayload) {
+  return requestClient.request<TelegramBot>(`/bots/${id}/`, {
+    data: payload,
+    method: 'PATCH',
+  });
+}
+
+export function deleteTelegramBotApi(id: number) {
+  return requestClient.delete(`/bots/${id}/`);
+}
+
+export function getTelegramBotButtonsApi(params: TelegramListQuery = {}) {
+  return requestClient.get<DrfPaginatedResponse<TelegramBotButton>>(
+    '/bot-buttons/',
+    { params },
+  );
+}
+
+export function createTelegramBotButtonApi(payload: TelegramBotButtonPayload) {
+  return requestClient.post<TelegramBotButton>('/bot-buttons/', payload);
+}
+
+export function updateTelegramBotButtonApi(
+  id: number,
+  payload: TelegramBotButtonPayload,
+) {
+  return requestClient.request<TelegramBotButton>(`/bot-buttons/${id}/`, {
+    data: payload,
+    method: 'PATCH',
+  });
+}
+
+export function deleteTelegramBotButtonApi(id: number) {
+  return requestClient.delete(`/bot-buttons/${id}/`);
 }
 
 export function getTronAddressesApi(params: TelegramListQuery) {

@@ -8,7 +8,13 @@ from typing import Any, Protocol
 
 from django.db.models import F
 
-from botcore.models import BotSettings, TelegramGroup, TelegramGroupMember, TelegramUser
+from botcore.models import (
+    TelegramBot,
+    TelegramBotUser,
+    TelegramGroup,
+    TelegramGroupMember,
+    TelegramUser,
+)
 
 
 MEMBER_MESSAGE_FIELDS = {
@@ -19,7 +25,12 @@ MEMBER_MESSAGE_FIELDS = {
 
 
 class TelegramTransport(Protocol):
-    def send_message(self, chat_id: int, text: str) -> None: ...
+    def send_message(
+        self,
+        chat_id: int,
+        text: str,
+        reply_markup: dict[str, Any] | None = None,
+    ) -> None: ...
 
     def get_updates(self, offset: int | None, timeout: int) -> list[dict[str, Any]]: ...
 
@@ -36,8 +47,16 @@ class TelegramBotAPITransport:
             raise RuntimeError(f"Telegram API request failed: {method}")
         return body.get("result")
 
-    def send_message(self, chat_id: int, text: str) -> None:
-        self._request("sendMessage", {"chat_id": chat_id, "text": text})
+    def send_message(
+        self,
+        chat_id: int,
+        text: str,
+        reply_markup: dict[str, Any] | None = None,
+    ) -> None:
+        payload: dict[str, Any] = {"chat_id": chat_id, "text": text}
+        if reply_markup:
+            payload["reply_markup"] = json.dumps(reply_markup)
+        self._request("sendMessage", payload)
 
     def get_updates(self, offset: int | None, timeout: int) -> list[dict[str, Any]]:
         payload: dict[str, Any] = {"timeout": timeout, "allowed_updates": json.dumps(["message"])}
@@ -53,7 +72,7 @@ class UpdateResult:
     replies_sent: int = 0
 
 
-def _persist_user(data: dict[str, Any]) -> tuple[TelegramUser, bool]:
+def _persist_user(data: dict[str, Any], bot: TelegramBot) -> tuple[TelegramUser, bool]:
     telegram_id = int(data["id"])
     defaults = {
         "username": data.get("username", ""),
@@ -63,10 +82,12 @@ def _persist_user(data: dict[str, Any]) -> tuple[TelegramUser, bool]:
         "is_bot": bool(data.get("is_bot", False)),
         "is_active": True,
     }
-    user, created = TelegramUser.objects.update_or_create(telegram_id=telegram_id, defaults=defaults)
+    user, _ = TelegramUser.objects.update_or_create(telegram_id=telegram_id, defaults=defaults)
     TelegramUser.objects.filter(pk=user.pk).update(message_count=F("message_count") + 1)
     user.refresh_from_db()
-    return user, created
+    bot_user, first_interaction = TelegramBotUser.objects.get_or_create(bot=bot, user=user)
+    TelegramBotUser.objects.filter(pk=bot_user.pk).update(message_count=F("message_count") + 1)
+    return user, first_interaction
 
 
 def _persist_group(chat: dict[str, Any]) -> TelegramGroup | None:
@@ -89,6 +110,7 @@ def _persist_group(chat: dict[str, Any]) -> TelegramGroup | None:
 
 def _persist_group_member(
     message: dict[str, Any],
+    bot: TelegramBot,
     group: TelegramGroup | None,
     user: TelegramUser,
     sender: dict[str, Any],
@@ -99,6 +121,7 @@ def _persist_group_member(
         return None
 
     member, _ = TelegramGroupMember.objects.update_or_create(
+        bot=bot,
         group=group,
         user=user,
         defaults={
@@ -127,7 +150,21 @@ def _render_welcome(template: str, user: dict[str, Any], chat: dict[str, Any]) -
         return template
 
 
-def handle_update(update: dict[str, Any], transport: TelegramTransport) -> UpdateResult:
+def _build_reply_markup(bot: TelegramBot) -> dict[str, Any] | None:
+    rows: dict[int, list[dict[str, str]]] = {}
+    buttons = bot.buttons.filter(enabled=True).order_by("row", "position", "id")
+    for button in buttons:
+        rows.setdefault(button.row, []).append({"text": button.text, "url": button.url})
+    if not rows:
+        return None
+    return {"inline_keyboard": [rows[row] for row in sorted(rows)]}
+
+
+def handle_update(
+    update: dict[str, Any],
+    transport: TelegramTransport,
+    bot: TelegramBot | None = None,
+) -> UpdateResult:
     """Persist the public identity boundary and send deterministic bot replies."""
     message = update.get("message") or {}
     sender = message.get("from") or {}
@@ -135,15 +172,20 @@ def handle_update(update: dict[str, Any], transport: TelegramTransport) -> Updat
     if not sender.get("id") or not chat.get("id"):
         return UpdateResult()
 
-    user, first_interaction = _persist_user(sender)
+    bot = bot or TelegramBot.load_default()
+    user, first_interaction = _persist_user(sender, bot)
     group = _persist_group(chat)
-    _persist_group_member(message, group, user, sender)
-    settings = BotSettings.load()
+    _persist_group_member(message, bot, group, user, sender)
+    reply_markup = _build_reply_markup(bot)
     replies = 0
     text = (message.get("text") or "").split("@", 1)[0].strip().lower()
 
     if text == "/start":
-        transport.send_message(int(chat["id"]), _render_welcome(settings.welcome_message, sender, chat))
+        transport.send_message(
+            int(chat["id"]),
+            _render_welcome(bot.welcome_message, sender, chat),
+            reply_markup=reply_markup,
+        )
         replies += 1
     elif text == "/id":
         transport.send_message(int(chat["id"]), f"用户 ID: {user.telegram_id}")
@@ -153,16 +195,24 @@ def handle_update(update: dict[str, Any], transport: TelegramTransport) -> Updat
         replies += 1
 
     welcome_users = message.get("new_chat_members") or []
-    if settings.welcome_enabled:
+    if bot.welcome_enabled:
         if group and welcome_users:
             for member in welcome_users:
                 if member.get("is_bot"):
                     continue
-                _persist_user(member)
-                transport.send_message(int(chat["id"]), _render_welcome(settings.welcome_message, member, chat))
+                _persist_user(member, bot)
+                transport.send_message(
+                    int(chat["id"]),
+                    _render_welcome(bot.welcome_message, member, chat),
+                    reply_markup=reply_markup,
+                )
                 replies += 1
         elif chat.get("type") == "private" and first_interaction and not text.startswith("/"):
-            transport.send_message(int(chat["id"]), _render_welcome(settings.welcome_message, sender, chat))
+            transport.send_message(
+                int(chat["id"]),
+                _render_welcome(bot.welcome_message, sender, chat),
+                reply_markup=reply_markup,
+            )
             replies += 1
 
     return UpdateResult(user_id=user.telegram_id, group_id=group.telegram_id if group else None, replies_sent=replies)

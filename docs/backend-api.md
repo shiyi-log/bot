@@ -8,14 +8,31 @@ This starter currently uses DRF's `AllowAny` permission so a newly generated Vbe
 
 `GET /api/dashboard/summary/`
 
-Returns `telegram_users`, `telegram_groups`, `active_tron_addresses`, `total_balance_sun`, `tron_errors`, `bot_enabled`, `tron_monitor_enabled`, and `generated_at`.
+Returns `telegram_users`, `telegram_groups`, `telegram_bots`, `active_tron_addresses`, `total_balance_sun`, `tron_errors`, `bot_enabled`, `tron_monitor_enabled`, and `generated_at`. `bot_enabled` is true when at least one bot is enabled.
 
 ## Settings
 
 - `GET /api/settings/`
 - `PATCH /api/settings/`
 
-Writable fields: `bot_enabled`, `welcome_enabled`, `welcome_message`, `tron_monitor_enabled`, and `tron_poll_interval`. The interval must be from 5 to 3600 seconds. Supported welcome placeholders are `{first_name}`, `{last_name}`, `{username}`, `{user_id}`, `{group_title}`, and `{group_id}`.
+Writable fields: `tron_monitor_enabled` and `tron_poll_interval`. The interval must be from 5 to 3600 seconds. Telegram enable and welcome settings are managed per bot.
+
+## Telegram Bots and Buttons
+
+- `GET /api/bots/`
+- `POST /api/bots/`
+- `GET /api/bots/{id}/`
+- `PATCH /api/bots/{id}/`
+- `DELETE /api/bots/{id}/`
+- `GET /api/bot-buttons/`
+- `POST /api/bot-buttons/`
+- `GET /api/bot-buttons/{id}/`
+- `PATCH /api/bot-buttons/{id}/`
+- `DELETE /api/bot-buttons/{id}/`
+
+Bot writable fields are `name`, `username`, `telegram_id`, `token_env_var`, `enabled`, `welcome_enabled`, and `welcome_message`. `token_env_var` is an uppercase environment variable name; the token value is never stored or returned. Responses also include read-only `credential_configured` and `button_count`. Supported welcome placeholders are `{first_name}`, `{last_name}`, `{username}`, `{user_id}`, `{group_title}`, and `{group_id}`.
+
+Button writable fields are `bot`, `text`, `url`, `row`, `position`, and `enabled`. Buttons are URL-only Telegram inline keyboard buttons. Enabled buttons are grouped by row and ordered by position, and are attached only to `/start`, first-private-interaction welcomes, and new-member welcomes. Bot filters: `enabled`. Button filters: `bot`, `enabled`.
 
 ## Telegram Users and Groups
 
@@ -32,9 +49,9 @@ User filters: `is_active`, `is_bot`, `language_code`. User ordering fields: `tel
 
 Group filters: `is_active`, `group_type`. Group ordering fields: `telegram_id`, `first_seen_at`, `last_seen_at`, `message_count`.
 
-Group responses include `member_count`, which counts members who have spoken in that group. Member records are created or refreshed only from normal content messages in a group or supergroup. Joining alone, private chats, channel posts, service-only updates, and anonymous `sender_chat` messages do not create membership records. Username and name snapshots update on the member's next qualifying group message.
+Group responses include `member_count`, which counts distinct users who have spoken in that group. Member records are scoped to the receiving bot and are created or refreshed only from normal content messages in a group or supergroup. Joining alone, private chats, channel posts, service-only updates, and anonymous `sender_chat` messages do not create membership records. Username and name snapshots update on the member's next qualifying group message.
 
-Member filters: `group`, `group__telegram_id`, `user`, and `user__telegram_id`. Member ordering fields: `first_spoke_at`, `last_spoke_at`, and `message_count`. Search covers group ID/title, Telegram user ID, username, first name, and last name.
+Member responses include `bot` and `bot_name`. Member filters: `bot`, `group`, `group__telegram_id`, `user`, and `user__telegram_id`. Member ordering fields: `first_spoke_at`, `last_spoke_at`, and `message_count`. Search covers group ID/title, Telegram user ID, username, first name, and last name.
 
 ## TRON Addresses
 
@@ -50,6 +67,6 @@ Filters: `enabled`, `status`. Search fields: `address`, `label`. Ordering fields
 
 ## Runtime Boundaries
 
-`python manage.py run_bot` requires `ENABLE_TELEGRAM_NETWORK=1`, `TELEGRAM_BOT_TOKEN`, and `bot_enabled=true`. It persists the public user/group identity from updates, records group membership only when a member speaks, supports `/start`, `/id`, and `/chatid`, welcomes a first private interaction, and welcomes new group members.
+`python manage.py run_bot` requires `ENABLE_TELEGRAM_NETWORK=1` and at least one enabled bot whose configured `token_env_var` exists in the environment. It concurrently runs all eligible bots. Use repeatable `--bot-id ID` to select enabled bots. It persists the public user/group identity from updates, tracks first interaction per bot, records speaking membership per bot, supports `/start`, `/id`, and `/chatid`, welcomes a first private interaction, and welcomes new group members.
 
 `python manage.py monitor_tron` requires `ENABLE_TRON_NETWORK=1`, `TRONGRID_API_KEY`, and `tron_monitor_enabled=true`. It performs read-only polling. Both commands support `--once`. Without the explicit network flag they stop with an error before making a request.
