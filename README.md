@@ -33,7 +33,7 @@ pnpm --filter @vben/web-antd dev --host 127.0.0.1
 
 ## 机器人与监控
 
-复制 `.env.example` 为 `.env`，为每个机器人填写其后台配置的令牌环境变量。数据库只保存环境变量名，不保存令牌值。真实网络功能仍需后台启用机器人并显式开启环境变量：
+复制 `.env.example` 为 `.env`，为每个机器人填写其后台配置的令牌环境变量。TRON API Key 可直接在“运行设置”中录入明文，或仅配置环境变量名作为兜底；页面和接口只显示脱敏预览，日志与提交内容不会包含 Key。真实网络功能仍需后台启用机器人并显式开启环境变量：
 
 ```bash
 ENABLE_TELEGRAM_NETWORK=1 uv run python manage.py run_bot
@@ -41,7 +41,7 @@ ENABLE_TELEGRAM_NETWORK=1 uv run python manage.py run_bot --bot-id 2
 ENABLE_TRON_NETWORK=1 uv run python manage.py monitor_tron
 ```
 
-`run_bot` 默认并发运行全部已启用且凭据已配置的机器人，`--bot-id` 可重复指定多个机器人；两个命令均支持 `--once`。TRON API 地址和 API Key 环境变量名可在“运行设置”配置，API Key 值只从 Django 服务端环境读取。按钮为 URL 类型的 Telegram 内联键盘，仅随 `/start`、首次私聊欢迎和新成员欢迎发送。TRON 功能仅进行只读查询，不包含私钥、签名、转账或支付执行。
+`run_bot` 默认并发运行全部已启用且凭据已配置的机器人，`--bot-id` 可重复指定多个机器人；两个命令均支持 `--once`。TRON API 地址、明文 API Key 和 API Key 环境变量名可在“运行设置”配置；Key 支持换行、逗号或分号分隔并在 401 时轮换，数据库值优先于环境变量。按钮为 URL 类型的 Telegram 内联键盘，仅随 `/start`、首次私聊欢迎和新成员欢迎发送。TRON 功能仅进行只读查询，不包含私钥、签名、转账或支付执行。
 
 ## 验证
 

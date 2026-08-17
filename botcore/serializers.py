@@ -59,17 +59,34 @@ class TelegramGroupMemberSerializer(serializers.ModelSerializer):
 
 class BotSettingsSerializer(serializers.ModelSerializer):
     tron_api_key_configured = serializers.SerializerMethodField()
+    tron_api_key_preview = serializers.SerializerMethodField()
+    tron_api_key = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = BotSettings
         fields = [
             "tron_monitor_enabled", "tron_api_url", "tron_api_key_env_var",
-            "tron_api_key_configured", "tron_poll_interval", "updated_at",
+            "tron_api_key", "tron_api_key_configured", "tron_api_key_preview",
+            "tron_poll_interval", "updated_at",
         ]
         read_only_fields = ["tron_api_key_configured", "updated_at"]
 
     def get_tron_api_key_configured(self, obj):
-        return bool(os.getenv(obj.tron_api_key_env_var, "").strip())
+        return bool(obj.tron_api_key.strip() or os.getenv(obj.tron_api_key_env_var, "").strip())
+
+    def get_tron_api_key_preview(self, obj):
+        value = obj.tron_api_key.strip() or os.getenv(obj.tron_api_key_env_var, "").strip()
+        if not value:
+            return ""
+        if len(value) <= 6:
+            return "*" * len(value)
+        return f"{value[:3]}***{value[-3:]}"
+
+    def update(self, instance, validated_data):
+        api_key = validated_data.pop("tron_api_key", serializers.empty)
+        if api_key is not serializers.empty:
+            instance.tron_api_key = api_key.strip()
+        return super().update(instance, validated_data)
 
     def validate_tron_api_url(self, value):
         value = value.strip().rstrip("/")

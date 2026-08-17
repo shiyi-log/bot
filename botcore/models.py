@@ -122,6 +122,8 @@ class BotSettings(models.Model):
     tron_monitor_enabled = models.BooleanField(default=False)
     tron_api_url = models.URLField(default="https://api.trongrid.io", max_length=255)
     tron_api_key_env_var = models.CharField(max_length=64, default="TRONGRID_API_KEY")
+    # Intentionally plain text per project configuration request. Never expose via API.
+    tron_api_key = models.TextField(blank=True, default="")
     tron_poll_interval = models.PositiveIntegerField(default=30)
     updated_at = models.DateTimeField(auto_now=True)
 

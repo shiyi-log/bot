@@ -17,7 +17,7 @@ class Command(BaseCommand):
         if os.getenv("ENABLE_TRON_NETWORK", "0") != "1":
             raise CommandError("TRON network is disabled; set ENABLE_TRON_NETWORK=1 explicitly.")
         settings = BotSettings.load()
-        api_key = os.getenv(settings.tron_api_key_env_var, "").strip()
+        api_key = settings.tron_api_key.strip() or os.getenv(settings.tron_api_key_env_var, "").strip()
         if not api_key:
             raise CommandError(f"{settings.tron_api_key_env_var} is required.")
         if not settings.tron_monitor_enabled:

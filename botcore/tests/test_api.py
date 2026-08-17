@@ -16,6 +16,14 @@ class ApiContractTests(TestCase):
         self.assertEqual(response.data["tron_api_url"], "https://api.trongrid.io")
         self.assertEqual(response.data["tron_api_key_env_var"], "TRONGRID_API_KEY")
         self.assertFalse(response.data["tron_api_key_configured"])
+        self.assertNotIn("tron_api_key", response.data)
+        response = self.client.patch("/api/settings/", {
+            "tron_api_key": "alpha-secret,beta-secret",
+        }, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("tron_api_key", response.data)
+        self.assertEqual(response.data["tron_api_key_preview"], "alp***ret")
+        self.assertTrue(response.data["tron_api_key_configured"])
         response = self.client.patch("/api/settings/", {
             "tron_api_url": "https://api.example.test/tron/",
             "tron_api_key_env_var": "CUSTOM_TRON_KEY",

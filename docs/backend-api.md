@@ -15,7 +15,7 @@ Returns `telegram_users`, `telegram_groups`, `telegram_bots`, `active_tron_addre
 - `GET /api/settings/`
 - `PATCH /api/settings/`
 
-Writable fields: `tron_monitor_enabled`, `tron_api_url`, `tron_api_key_env_var`, and `tron_poll_interval`. The interval must be from 5 to 3600 seconds. `tron_api_url` must use `http://` or `https://`; `tron_api_key_env_var` must be an uppercase environment variable name. The response includes read-only `tron_api_key_configured`, which only reports whether that environment variable is present. The API Key value is never accepted, stored, or returned by this API. Telegram enable and welcome settings are managed per bot.
+Writable fields: `tron_monitor_enabled`, `tron_api_url`, `tron_api_key_env_var`, `tron_api_key`, and `tron_poll_interval`. The interval must be from 5 to 3600 seconds. `tron_api_url` must use `http://` or `https://`; `tron_api_key_env_var` must be an uppercase environment variable name. `tron_api_key` accepts a plain-text key list separated by newlines, commas, or semicolons and is write-only. The database value takes precedence over the named environment variable when present; the environment variable is the fallback. Responses include read-only `tron_api_key_configured` and `tron_api_key_preview`; the raw API Key is never returned. Protect the database and backups because this template intentionally does not encrypt the stored key. Telegram enable and welcome settings are managed per bot.
 
 ## Telegram Bots and Buttons
 
@@ -69,4 +69,4 @@ Filters: `enabled`, `status`. Search fields: `address`, `label`. Ordering fields
 
 `python manage.py run_bot` requires `ENABLE_TELEGRAM_NETWORK=1` and at least one enabled bot whose configured `token_env_var` exists in the environment. It concurrently runs all eligible bots. Use repeatable `--bot-id ID` to select enabled bots. It persists the public user/group identity from updates, tracks first interaction per bot, records speaking membership per bot, supports `/start`, `/id`, and `/chatid`, welcomes a first private interaction, and welcomes new group members.
 
-`python manage.py monitor_tron` requires `ENABLE_TRON_NETWORK=1`, the environment variable named by `tron_api_key_env_var`, and `tron_monitor_enabled=true`. It uses `tron_api_url` and performs read-only polling. Both commands support `--once`. Without the explicit network flag they stop with an error before making a request.
+`python manage.py monitor_tron` requires `ENABLE_TRON_NETWORK=1`, a configured database Key or the environment variable named by `tron_api_key_env_var`, and `tron_monitor_enabled=true`. It uses `tron_api_url`, performs read-only polling, rotates multiple keys, and retries the next key on HTTP 401. Both commands support `--once`. Without the explicit network flag they stop with an error before making a request.

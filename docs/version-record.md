@@ -1,5 +1,9 @@
 # 版本记录
 
+## v0.3.2 - 2026-08-17
+
+按用户要求取消 TRON API Key 加密。`BotSettings.tron_api_key` 以明文保存，PATCH 可写入，GET/响应只返回 `tron_api_key_preview` 脱敏值；未填写数据库 Key 时才读取 `tron_api_key_env_var` 指定的环境变量。支持多 Key 分隔配置和 HTTP 401 轮换，仍保持默认关闭与只读监控。数据库及备份必须按生产密钥处理。
+
 ## v0.3.1 - 2026-08-17
 
 补全 TRON 运行设置。管理员现在可以配置 TRON API 地址和 API Key 环境变量名，并查看服务端环境变量是否已配置；API Key 本身不会通过页面提交、数据库保存或 API 返回。监控命令按设置读取 API 地址和环境变量，仍保持只读与默认关闭。

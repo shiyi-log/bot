@@ -3,6 +3,8 @@ import { requestClient } from '#/api/request';
 export interface BotSettings {
   tron_api_key_configured: boolean;
   tron_api_key_env_var: string;
+  tron_api_key_preview: string;
+  tron_api_key?: string;
   tron_api_url: string;
   tron_monitor_enabled: boolean;
   tron_poll_interval: number;
@@ -11,8 +13,10 @@ export interface BotSettings {
 
 export type BotSettingsUpdate = Omit<
   BotSettings,
-  'tron_api_key_configured' | 'updated_at'
->;
+  'tron_api_key_configured' | 'tron_api_key_preview' | 'updated_at'
+> & {
+  tron_api_key?: string;
+};
 
 export interface TelegramListQuery {
   bot?: number;

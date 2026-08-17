@@ -23,9 +23,12 @@ import { getBotSettingsApi, updateBotSettingsApi } from '#/api/telegram';
 
 const loading = ref(false);
 const saving = ref(false);
+const apiKeyDirty = ref(false);
 const form = reactive<BotSettings>({
   tron_api_key_configured: false,
   tron_api_key_env_var: 'TRONGRID_API_KEY',
+  tron_api_key_preview: '',
+  tron_api_key: '',
   tron_api_url: 'https://api.trongrid.io',
   tron_monitor_enabled: false,
   tron_poll_interval: 30,
@@ -36,6 +39,8 @@ async function loadSettings() {
   loading.value = true;
   try {
     Object.assign(form, await getBotSettingsApi());
+    form.tron_api_key = '';
+    apiKeyDirty.value = false;
   } finally {
     loading.value = false;
   }
@@ -50,7 +55,12 @@ async function saveSettings() {
       tron_monitor_enabled: form.tron_monitor_enabled,
       tron_poll_interval: form.tron_poll_interval,
     };
+    if (apiKeyDirty.value) {
+      payload.tron_api_key = form.tron_api_key;
+    }
     Object.assign(form, await updateBotSettingsApi(payload));
+    form.tron_api_key = '';
+    apiKeyDirty.value = false;
     message.success('设置已保存');
   } finally {
     saving.value = false;
@@ -93,6 +103,17 @@ onMounted(loadSettings);
           ]"
         >
           <Input v-model:value="form.tron_api_key_env_var" placeholder="TRONGRID_API_KEY" />
+        </FormItem>
+        <FormItem label="TRON API Key" name="tron_api_key">
+          <Input.TextArea
+            v-model:value="form.tron_api_key"
+            :auto-size="{ minRows: 3, maxRows: 6 }"
+            placeholder="可选；多个 Key 请每行一个，或用逗号/分号分隔"
+            @update:value="apiKeyDirty = true"
+          />
+          <div class="mt-2 text-sm text-gray-500">
+            当前状态：{{ form.tron_api_key_preview || '未配置' }}
+          </div>
         </FormItem>
         <FormItem label="API Key 状态">
           <Tag :color="form.tron_api_key_configured ? 'success' : 'warning'">

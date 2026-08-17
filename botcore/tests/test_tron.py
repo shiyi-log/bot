@@ -1,7 +1,16 @@
-from django.test import TestCase
+from unittest.mock import patch
+import urllib.error
+
+from django.test import SimpleTestCase, TestCase
 
 from botcore.models import TronAddress
-from botcore.services.tron import TronSnapshot, is_valid_tron_address, poll_enabled_addresses
+from botcore.services.tron import (
+    TronGridProvider,
+    TronSnapshot,
+    is_valid_tron_address,
+    parse_tron_api_keys,
+    poll_enabled_addresses,
+)
 
 VALID_ADDRESS = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
 
@@ -37,3 +46,37 @@ class TronMonitorTests(TestCase):
         self.assertEqual(result["errors"], 1)
         self.assertEqual(monitored.status, TronAddress.Status.ERROR)
         self.assertIn("provider unavailable", monitored.last_error)
+
+
+class TronProviderTests(SimpleTestCase):
+    def test_parse_api_keys_accepts_common_separators_and_deduplicates(self):
+        self.assertEqual(
+            parse_tron_api_keys(" alpha\nbeta,alpha； gamma; beta "),
+            ["alpha", "beta", "gamma"],
+        )
+
+    def test_401_rotates_to_next_key(self):
+        provider = TronGridProvider("https://api.trongrid.io", "first\nsecond")
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return b'{"ok": true}'
+
+        calls = []
+
+        def fake_urlopen(request, timeout):
+            calls.append(request.get_header("Tron-pro-api-key"))
+            if len(calls) == 1:
+                raise urllib.error.HTTPError(request.full_url, 401, "unauthorized", {}, None)
+            return Response()
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            self.assertEqual(provider._get("/v1/accounts/T"), {"ok": True})
+
+        self.assertEqual(calls, ["first", "second"])
