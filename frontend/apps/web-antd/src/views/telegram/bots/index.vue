@@ -60,7 +60,7 @@ const modalTitle = computed(() =>
   editingId.value ? '编辑机器人' : '新增机器人',
 );
 const columns: TableColumnsType<TelegramBot> = [
-  { title: '名称', dataIndex: 'name', key: 'name', width: 180 },
+  { title: '名称', dataIndex: 'name', key: 'name', fixed: 'left', width: 180 },
   { title: '用户名', dataIndex: 'username', key: 'username', width: 170 },
   {
     title: 'Telegram ID',
@@ -260,6 +260,7 @@ onMounted(loadData);
         }"
         row-key="id"
         :scroll="{ x: 1570 }"
+        sticky
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">

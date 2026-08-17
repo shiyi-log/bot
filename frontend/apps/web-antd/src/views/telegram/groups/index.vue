@@ -24,6 +24,7 @@ const columns: TableColumnsType<TelegramGroup> = [
     title: 'Telegram 群组 ID',
     dataIndex: 'telegram_id',
     key: 'telegram_id',
+    fixed: 'left',
     width: 200,
   },
   { title: '群组名称', dataIndex: 'title', key: 'title', width: 240 },
@@ -145,6 +146,7 @@ onMounted(loadData);
         }"
         row-key="id"
         :scroll="{ x: 1450 }"
+        sticky
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">

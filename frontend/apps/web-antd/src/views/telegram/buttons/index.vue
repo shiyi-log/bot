@@ -65,7 +65,13 @@ const form = reactive<TelegramBotButtonPayload>({
 
 const modalTitle = computed(() => (editingId.value ? '编辑按钮' : '新增按钮'));
 const columns: TableColumnsType<TelegramBotButton> = [
-  { title: '机器人', dataIndex: 'bot_name', key: 'bot_name', width: 180 },
+  {
+    title: '机器人',
+    dataIndex: 'bot_name',
+    key: 'bot_name',
+    fixed: 'left',
+    width: 180,
+  },
   { title: '按钮文字', dataIndex: 'text', key: 'text', width: 180 },
   { title: '链接', dataIndex: 'url', key: 'url', width: 360 },
   { title: '行', dataIndex: 'row', key: 'row', width: 80 },
@@ -261,6 +267,7 @@ onMounted(async () => {
         }"
         row-key="id"
         :scroll="{ x: 1130 }"
+        sticky
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">

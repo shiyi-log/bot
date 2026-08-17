@@ -47,7 +47,13 @@ const modalTitle = computed(() =>
   editingId.value ? '编辑监控地址' : '新增监控地址',
 );
 const columns: TableColumnsType<TronAddress> = [
-  { title: '地址', dataIndex: 'address', key: 'address', width: 360 },
+  {
+    title: '地址',
+    dataIndex: 'address',
+    key: 'address',
+    fixed: 'left',
+    width: 360,
+  },
   { title: '备注', dataIndex: 'label', key: 'label', width: 180 },
   { title: '余额', dataIndex: 'balance_sun', key: 'balance_sun', width: 140 },
   { title: '监控状态', dataIndex: 'enabled', key: 'enabled', width: 110 },
@@ -197,6 +203,7 @@ onMounted(loadData);
         }"
         row-key="id"
         :scroll="{ x: 1500 }"
+        sticky
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">

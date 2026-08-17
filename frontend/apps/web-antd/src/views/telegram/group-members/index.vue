@@ -34,7 +34,13 @@ const items = ref<TelegramGroupMember[]>([]);
 const pagination = reactive({ page: 1, pageSize: 20, total: 0 });
 
 const columns: TableColumnsType<TelegramGroupMember> = [
-  { title: '机器人', dataIndex: 'bot_name', key: 'bot_name', width: 180 },
+  {
+    title: '机器人',
+    dataIndex: 'bot_name',
+    key: 'bot_name',
+    fixed: 'left',
+    width: 180,
+  },
   { title: '群组', dataIndex: 'group_title', key: 'group_title', width: 220 },
   {
     title: '群组 ID',
@@ -206,6 +212,7 @@ onMounted(async () => {
         }"
         row-key="id"
         :scroll="{ x: 1350 }"
+        sticky
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">

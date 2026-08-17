@@ -1,4 +1,4 @@
-import { initPreferences } from '@vben/preferences';
+import { initPreferences, updatePreferences } from '@vben/preferences';
 import { unmountGlobalLoading } from '@vben/utils';
 
 import { overridesPreferences, preferencesExtension } from './preferences';
@@ -18,6 +18,14 @@ async function initApplication() {
     extension: preferencesExtension,
     namespace,
     overrides: overridesPreferences,
+  });
+  // Keep existing cached preferences from restoring an unlimited tab history.
+  updatePreferences({
+    tabbar: {
+      maxCount: 5,
+      showMore: true,
+      wheelable: true,
+    },
   });
 
   // 启动应用并挂载

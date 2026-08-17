@@ -21,6 +21,11 @@ export const overridesPreferences = defineOverridesPreferences({
     defaultHomePath: '/admin/telegram-users',
     name: import.meta.env.VITE_APP_TITLE,
   },
+  tabbar: {
+    maxCount: 5,
+    showMore: true,
+    wheelable: true,
+  },
 });
 
 export const preferencesExtension =

@@ -22,6 +22,7 @@ const columns: TableColumnsType<TelegramUser> = [
     title: 'Telegram 用户 ID',
     dataIndex: 'telegram_id',
     key: 'telegram_id',
+    fixed: 'left',
     width: 190,
   },
   { title: '用户名', dataIndex: 'username', key: 'username', width: 180 },
@@ -128,6 +129,7 @@ onMounted(loadData);
         }"
         row-key="id"
         :scroll="{ x: 1250 }"
+        sticky
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">

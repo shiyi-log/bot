@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { BotSettings, BotSettingsUpdate } from '#/api/telegram';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
@@ -33,6 +33,13 @@ const form = reactive<BotSettings>({
   tron_monitor_enabled: false,
   tron_poll_interval: 30,
   updated_at: null,
+});
+const apiKeyInput = computed({
+  get: () => form.tron_api_key ?? '',
+  set: (value: string) => {
+    form.tron_api_key = value;
+    apiKeyDirty.value = true;
+  },
 });
 
 async function loadSettings() {
@@ -106,10 +113,9 @@ onMounted(loadSettings);
         </FormItem>
         <FormItem label="TRON API Key" name="tron_api_key">
           <Input.TextArea
-            v-model:value="form.tron_api_key"
+            v-model:value="apiKeyInput"
             :auto-size="{ minRows: 3, maxRows: 6 }"
             placeholder="可选；多个 Key 请每行一个，或用逗号/分号分隔"
-            @update:value="apiKeyDirty = true"
           />
           <div class="mt-2 text-sm text-gray-500">
             当前状态：{{ form.tron_api_key_preview || '未配置' }}
@@ -122,7 +128,7 @@ onMounted(loadSettings);
         </FormItem>
         <Alert
           class="mb-4"
-          message="这里只保存 API 地址和环境变量名。API Key 必须在 Django 服务端环境中配置，不会通过页面提交。"
+          message="API Key 按当前部署要求以明文保存，页面只显示脱敏预览；数据库未配置时使用上方环境变量作为兜底。请妥善保护数据库及备份。"
           show-icon
           type="info"
         />
