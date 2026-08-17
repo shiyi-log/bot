@@ -58,12 +58,32 @@ class TelegramGroupMemberSerializer(serializers.ModelSerializer):
 
 
 class BotSettingsSerializer(serializers.ModelSerializer):
+    tron_api_key_configured = serializers.SerializerMethodField()
+
     class Meta:
         model = BotSettings
         fields = [
-            "tron_monitor_enabled", "tron_poll_interval", "updated_at",
+            "tron_monitor_enabled", "tron_api_url", "tron_api_key_env_var",
+            "tron_api_key_configured", "tron_poll_interval", "updated_at",
         ]
-        read_only_fields = ["updated_at"]
+        read_only_fields = ["tron_api_key_configured", "updated_at"]
+
+    def get_tron_api_key_configured(self, obj):
+        return bool(os.getenv(obj.tron_api_key_env_var, "").strip())
+
+    def validate_tron_api_url(self, value):
+        value = value.strip().rstrip("/")
+        if not value.startswith(("http://", "https://")):
+            raise serializers.ValidationError("TRON API URL must use http:// or https://.")
+        return value
+
+    def validate_tron_api_key_env_var(self, value):
+        value = value.strip()
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]{2,63}", value):
+            raise serializers.ValidationError(
+                "Use an uppercase environment variable name, for example TRONGRID_API_KEY."
+            )
+        return value
 
     def validate_tron_poll_interval(self, value):
         if not 5 <= value <= 3600:

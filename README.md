@@ -41,7 +41,7 @@ ENABLE_TELEGRAM_NETWORK=1 uv run python manage.py run_bot --bot-id 2
 ENABLE_TRON_NETWORK=1 uv run python manage.py monitor_tron
 ```
 
-`run_bot` 默认并发运行全部已启用且凭据已配置的机器人，`--bot-id` 可重复指定多个机器人；两个命令均支持 `--once`。按钮为 URL 类型的 Telegram 内联键盘，仅随 `/start`、首次私聊欢迎和新成员欢迎发送。TRON 功能仅进行只读查询，不包含私钥、签名、转账或支付执行。
+`run_bot` 默认并发运行全部已启用且凭据已配置的机器人，`--bot-id` 可重复指定多个机器人；两个命令均支持 `--once`。TRON API 地址和 API Key 环境变量名可在“运行设置”配置，API Key 值只从 Django 服务端环境读取。按钮为 URL 类型的 Telegram 内联键盘，仅随 `/start`、首次私聊欢迎和新成员欢迎发送。TRON 功能仅进行只读查询，不包含私钥、签名、转账或支付执行。
 
 ## 验证
 

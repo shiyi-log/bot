@@ -1,12 +1,18 @@
 import { requestClient } from '#/api/request';
 
 export interface BotSettings {
+  tron_api_key_configured: boolean;
+  tron_api_key_env_var: string;
+  tron_api_url: string;
   tron_monitor_enabled: boolean;
   tron_poll_interval: number;
   updated_at: null | string;
 }
 
-export type BotSettingsUpdate = Omit<BotSettings, 'updated_at'>;
+export type BotSettingsUpdate = Omit<
+  BotSettings,
+  'tron_api_key_configured' | 'updated_at'
+>;
 
 export interface TelegramListQuery {
   bot?: number;

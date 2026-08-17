@@ -13,10 +13,24 @@ class ApiContractTests(TestCase):
     def test_settings_get_and_patch(self):
         response = self.client.get("/api/settings/")
         self.assertEqual(response.status_code, 200)
-        response = self.client.patch("/api/settings/", {"tron_poll_interval": 45}, format="json")
+        self.assertEqual(response.data["tron_api_url"], "https://api.trongrid.io")
+        self.assertEqual(response.data["tron_api_key_env_var"], "TRONGRID_API_KEY")
+        self.assertFalse(response.data["tron_api_key_configured"])
+        response = self.client.patch("/api/settings/", {
+            "tron_api_url": "https://api.example.test/tron/",
+            "tron_api_key_env_var": "CUSTOM_TRON_KEY",
+            "tron_poll_interval": 45,
+        }, format="json")
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["tron_api_url"], "https://api.example.test/tron")
+        self.assertEqual(response.data["tron_api_key_env_var"], "CUSTOM_TRON_KEY")
         self.assertEqual(response.data["tron_poll_interval"], 45)
         self.assertNotIn("welcome_message", response.data)
+
+        invalid = self.client.patch("/api/settings/", {
+            "tron_api_key_env_var": "not-a-valid-name",
+        }, format="json")
+        self.assertEqual(invalid.status_code, 400)
 
     def test_user_filter_group_list_and_dashboard(self):
         TelegramUser.objects.create(telegram_id=10, username="active", is_active=True)

@@ -16,14 +16,14 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         if os.getenv("ENABLE_TRON_NETWORK", "0") != "1":
             raise CommandError("TRON network is disabled; set ENABLE_TRON_NETWORK=1 explicitly.")
-        api_key = os.getenv("TRONGRID_API_KEY", "").strip()
-        if not api_key:
-            raise CommandError("TRONGRID_API_KEY is required.")
         settings = BotSettings.load()
+        api_key = os.getenv(settings.tron_api_key_env_var, "").strip()
+        if not api_key:
+            raise CommandError(f"{settings.tron_api_key_env_var} is required.")
         if not settings.tron_monitor_enabled:
             raise CommandError("TRON monitoring is disabled in settings.")
 
-        provider = TronGridProvider(os.getenv("TRONGRID_API_URL", "https://api.trongrid.io"), api_key)
+        provider = TronGridProvider(settings.tron_api_url, api_key)
         interval = settings.tron_poll_interval or max(5, int(os.getenv("TRON_POLL_INTERVAL", "30")))
         self.stdout.write("TRON monitoring started.")
         while True:

@@ -120,6 +120,8 @@ class TelegramGroupMember(models.Model):
 class BotSettings(models.Model):
     singleton_key = models.PositiveSmallIntegerField(default=1, unique=True, editable=False)
     tron_monitor_enabled = models.BooleanField(default=False)
+    tron_api_url = models.URLField(default="https://api.trongrid.io", max_length=255)
+    tron_api_key_env_var = models.CharField(max_length=64, default="TRONGRID_API_KEY")
     tron_poll_interval = models.PositiveIntegerField(default=30)
     updated_at = models.DateTimeField(auto_now=True)
 
