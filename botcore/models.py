@@ -1,5 +1,7 @@
 from django.db import models
 
+from botcore.crypto import decrypt_text, encrypt_text
+
 
 DEFAULT_WELCOME_MESSAGE = "欢迎 {first_name} 加入 {group_title}！"
 
@@ -125,8 +127,53 @@ class TelegramGroupMember(models.Model):
         return f"{self.group} / {self.user}"
 
 
+class TelegramLoginAccount(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        CODE_SENT = "code_sent", "Code sent"
+        PASSWORD_REQUIRED = "password_required", "Password required"
+        LOGGED_IN = "logged_in", "Logged in"
+        SESSION_EXPIRED = "session_expired", "Session expired"
+        ERROR = "error", "Error"
+
+    label = models.CharField(max_length=128)
+    phone = models.CharField(max_length=32)
+    telegram_id = models.BigIntegerField(null=True, blank=True, db_index=True)
+    username = models.CharField(max_length=64, blank=True)
+    first_name = models.CharField(max_length=128, blank=True)
+    last_name = models.CharField(max_length=128, blank=True)
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.PENDING)
+    phone_code_hash = models.TextField(blank=True)
+    session_string = models.TextField(blank=True)
+    last_error = models.TextField(blank=True)
+    last_checked_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+
+    @property
+    def phone_code_hash_plain(self) -> str:
+        return decrypt_text(self.phone_code_hash)
+
+    @property
+    def session_string_plain(self) -> str:
+        return decrypt_text(self.session_string)
+
+    def save(self, *args, **kwargs):
+        self.phone_code_hash = encrypt_text(self.phone_code_hash)
+        self.session_string = encrypt_text(self.session_string)
+        return super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return self.label
+
+
 class BotSettings(models.Model):
     singleton_key = models.PositiveSmallIntegerField(default=1, unique=True, editable=False)
+    telegram_api_id = models.CharField(max_length=32, blank=True)
+    telegram_api_hash = models.TextField(blank=True)
     tron_monitor_enabled = models.BooleanField(default=False)
     tron_api_url = models.URLField(default="https://api.trongrid.io", max_length=255)
     tron_api_key_env_var = models.CharField(max_length=64, default="TRONGRID_API_KEY")
@@ -137,6 +184,14 @@ class BotSettings(models.Model):
 
     class Meta:
         verbose_name_plural = "Bot settings"
+
+    @property
+    def telegram_api_hash_plain(self) -> str:
+        return decrypt_text(self.telegram_api_hash)
+
+    def save(self, *args, **kwargs):
+        self.telegram_api_hash = encrypt_text(self.telegram_api_hash)
+        return super().save(*args, **kwargs)
 
     @classmethod
     def load(cls):

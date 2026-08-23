@@ -9,6 +9,7 @@ load_dotenv(BASE_DIR / ".env", override=False)
 
 DEBUG = os.getenv("DEBUG", "1") == "1"
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-secret-key")
+CONFIG_ENCRYPTION_KEY = os.getenv("CONFIG_ENCRYPTION_KEY", "")
 if not DEBUG and SECRET_KEY == "dev-only-secret-key":
     raise ImproperlyConfigured("SECRET_KEY must be configured when DEBUG is disabled")
 

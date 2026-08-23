@@ -4,10 +4,12 @@ version = "0.1.0"
 description = "Django API template for a Telegram bot and TRON address monitoring"
 requires-python = ">=3.11"
 dependencies = [
+    "cryptography>=46,<47",
     "django>=5.2,<5.3",
     "djangorestframework>=3.16,<3.17",
     "django-filter>=25.1,<26",
     "python-dotenv>=1.1,<2",
+    "telethon>=1.43,<2",
 ]
 
 [tool.uv]
