@@ -24,13 +24,16 @@ Writable fields: `tron_monitor_enabled`, `tron_api_url`, `tron_api_key_env_var`,
 - `GET /api/bots/{id}/`
 - `PATCH /api/bots/{id}/`
 - `DELETE /api/bots/{id}/`
+- `POST /api/bots/{id}/clone/`
 - `GET /api/bot-buttons/`
 - `POST /api/bot-buttons/`
 - `GET /api/bot-buttons/{id}/`
 - `PATCH /api/bot-buttons/{id}/`
 - `DELETE /api/bot-buttons/{id}/`
 
-Bot writable fields are `name`, `username`, `telegram_id`, `token_env_var`, `enabled`, `welcome_enabled`, and `welcome_message`. `token_env_var` is an uppercase environment variable name; the token value is never stored or returned. Responses also include read-only `credential_configured` and `button_count`. Supported welcome placeholders are `{first_name}`, `{last_name}`, `{username}`, `{user_id}`, `{group_title}`, and `{group_id}`.
+Bot writable fields are `name`, `username`, `telegram_id`, `token_env_var`, `enabled`, `welcome_enabled`, `welcome_message`, and `clone_enabled`. `token_env_var` is an uppercase environment variable name; the token value is never stored or returned. Responses also include read-only `credential_configured`, `button_count`, `clone_count`, and `cloned_from`. Supported welcome placeholders are `{first_name}`, `{last_name}`, `{username}`, `{user_id}`, `{group_title}`, and `{group_id}`.
+
+The clone endpoint requires `clone_enabled=true` and copies the welcome configuration and URL buttons into a new disabled bot. It never copies the Telegram ID, username, token environment variable, or token value; a unique token environment variable name is generated unless one is supplied. The optional `billing_plan` field is reserved for future paid cloning. The response includes `billing.status=reserved` and `billing.provider=billing-not-configured`; no payment is executed by this template.
 
 Button writable fields are `bot`, `text`, `url`, `row`, `position`, and `enabled`. Buttons are URL-only Telegram inline keyboard buttons. Enabled buttons are grouped by row and ordered by position, and are attached only to `/start`, first-private-interaction welcomes, and new-member welcomes. Bot filters: `enabled`. Button filters: `bot`, `enabled`.
 

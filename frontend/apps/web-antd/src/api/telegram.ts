@@ -80,6 +80,9 @@ export interface TelegramGroupMember {
 
 export interface TelegramBot {
   button_count: number;
+  clone_count: number;
+  clone_enabled: boolean;
+  cloned_from: null | number;
   created_at: string;
   credential_configured: boolean;
   enabled: boolean;
@@ -93,7 +96,23 @@ export interface TelegramBot {
   welcome_message: string;
 }
 
+export interface TelegramBotClonePayload {
+  billing_plan?: string;
+  name?: string;
+  token_env_var?: string;
+}
+
+export interface TelegramBotCloneResult extends TelegramBot {
+  billing: {
+    message: string;
+    plan: string;
+    provider: string;
+    status: 'reserved';
+  };
+}
+
 export interface TelegramBotPayload {
+  clone_enabled: boolean;
   enabled: boolean;
   name: string;
   telegram_id: null | number | string;
@@ -190,6 +209,13 @@ export function updateTelegramBotApi(id: number, payload: TelegramBotPayload) {
     data: payload,
     method: 'PATCH',
   });
+}
+
+export function cloneTelegramBotApi(
+  id: number,
+  payload: TelegramBotClonePayload = {},
+) {
+  return requestClient.post<TelegramBotCloneResult>(`/bots/${id}/clone/`, payload);
 }
 
 export function deleteTelegramBotApi(id: number) {

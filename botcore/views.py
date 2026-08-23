@@ -1,6 +1,11 @@
+import re
+
+from django.db import transaction
 from django.db.models import Count, Sum
+from django.utils.text import slugify
 from django.utils import timezone
-from rest_framework import generics, viewsets
+from rest_framework import generics, serializers, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .models import (
@@ -90,6 +95,68 @@ class TelegramBotViewSet(viewsets.ModelViewSet):
     filterset_fields = ["enabled"]
     search_fields = ["name", "username", "telegram_id", "token_env_var"]
     ordering_fields = ["name", "created_at", "updated_at"]
+
+    @action(detail=True, methods=["post"], url_path="clone")
+    def clone(self, request, *args, **kwargs):
+        source = self.get_object()
+        if not source.clone_enabled:
+            return Response(
+                {"detail": "Cloning is disabled for this bot."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        requested_name = str(request.data.get("name", "")).strip()
+        requested_env_var = str(request.data.get("token_env_var", "")).strip().upper()
+        billing_plan = str(request.data.get("billing_plan", "standard")).strip() or "standard"
+        if len(requested_name) > 128:
+            raise serializers.ValidationError({"name": "Name must be 128 characters or fewer."})
+        if requested_env_var and not re.fullmatch(r"[A-Z][A-Z0-9_]{2,63}", requested_env_var):
+            raise serializers.ValidationError({"token_env_var": "Use an uppercase environment variable name."})
+        if requested_env_var and TelegramBot.objects.filter(token_env_var=requested_env_var).exists():
+            raise serializers.ValidationError({"token_env_var": "This environment variable name is already in use."})
+
+        with transaction.atomic():
+            clone = TelegramBot.objects.create(
+                name=requested_name or f"{source.name} 副本",
+                username="",
+                telegram_id=None,
+                token_env_var=requested_env_var or self._next_clone_env_var(source),
+                enabled=False,
+                welcome_enabled=source.welcome_enabled,
+                welcome_message=source.welcome_message,
+                clone_enabled=source.clone_enabled,
+                cloned_from=source,
+            )
+            TelegramBotButton.objects.bulk_create([
+                TelegramBotButton(
+                    bot=clone,
+                    text=button.text,
+                    url=button.url,
+                    row=button.row,
+                    position=button.position,
+                    enabled=button.enabled,
+                )
+                for button in source.buttons.all()
+            ])
+
+        data = TelegramBotSerializer(clone, context=self.get_serializer_context()).data
+        data["billing"] = {
+            "status": "reserved",
+            "plan": billing_plan,
+            "provider": "billing-not-configured",
+            "message": "Clone billing integration is reserved and not charged in this template.",
+        }
+        return Response(data, status=status.HTTP_201_CREATED)
+
+    @staticmethod
+    def _next_clone_env_var(source):
+        base = slugify(source.name).replace("-", "_").upper() or "BOT"
+        base = re.sub(r"[^A-Z0-9_]", "_", base)[:42].strip("_") or "BOT"
+        index = 1
+        while True:
+            candidate = f"{base}_CLONE_{source.pk}_{index}"
+            if not TelegramBot.objects.filter(token_env_var=candidate).exists():
+                return candidate
+            index += 1
 
 
 class TelegramBotButtonViewSet(viewsets.ModelViewSet):

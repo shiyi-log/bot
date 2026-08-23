@@ -111,13 +111,15 @@ class BotSettingsSerializer(serializers.ModelSerializer):
 class TelegramBotSerializer(serializers.ModelSerializer):
     credential_configured = serializers.SerializerMethodField()
     button_count = serializers.SerializerMethodField()
+    clone_count = serializers.SerializerMethodField()
+    cloned_from = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = TelegramBot
         fields = [
             "id", "name", "username", "telegram_id", "token_env_var", "enabled",
-            "welcome_enabled", "welcome_message", "credential_configured", "button_count",
-            "created_at", "updated_at",
+            "welcome_enabled", "welcome_message", "clone_enabled", "credential_configured", "button_count",
+            "clone_count", "cloned_from", "created_at", "updated_at",
         ]
         read_only_fields = ["credential_configured", "button_count", "created_at", "updated_at"]
 
@@ -128,6 +130,9 @@ class TelegramBotSerializer(serializers.ModelSerializer):
         if hasattr(obj, "button_count"):
             return obj.button_count
         return obj.buttons.count()
+
+    def get_clone_count(self, obj):
+        return obj.clones.count()
 
     def validate_token_env_var(self, value):
         value = value.strip()

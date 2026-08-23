@@ -111,3 +111,41 @@ class ApiContractTests(TestCase):
         listed = self.client.get("/api/bot-buttons/", {"bot": created.data["id"]})
         self.assertEqual(listed.data["count"], 1)
         self.assertEqual(listed.data["results"][0]["text"], "Help")
+
+    def test_bot_clone_copies_safe_configuration_and_buttons(self):
+        source = TelegramBot.objects.create(
+            name="Main",
+            token_env_var="MAIN_BOT_TOKEN",
+            enabled=True,
+            welcome_enabled=False,
+            welcome_message="Hello {first_name}",
+        )
+        TelegramBot.objects.get(pk=source.pk).buttons.create(
+            text="Help", url="https://example.com/help", row=1, position=1,
+        )
+
+        response = self.client.post(
+            f"/api/bots/{source.pk}/clone/",
+            {"billing_plan": "pro"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        clone = TelegramBot.objects.get(pk=response.data["id"])
+        self.assertEqual(clone.cloned_from_id, source.pk)
+        self.assertEqual(clone.welcome_message, source.welcome_message)
+        self.assertFalse(clone.enabled)
+        self.assertIsNone(clone.telegram_id)
+        self.assertNotEqual(clone.token_env_var, source.token_env_var)
+        self.assertEqual(clone.buttons.count(), 1)
+        self.assertEqual(response.data["billing"]["status"], "reserved")
+        self.assertEqual(response.data["billing"]["plan"], "pro")
+
+    def test_bot_clone_respects_clone_enabled(self):
+        source = TelegramBot.objects.create(
+            name="Private", token_env_var="PRIVATE_BOT_TOKEN", clone_enabled=False,
+        )
+        count_before = TelegramBot.objects.count()
+        response = self.client.post(f"/api/bots/{source.pk}/clone/", {}, format="json")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(TelegramBot.objects.count(), count_before)

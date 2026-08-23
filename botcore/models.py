@@ -12,6 +12,14 @@ class TelegramBot(models.Model):
     enabled = models.BooleanField(default=False)
     welcome_enabled = models.BooleanField(default=True)
     welcome_message = models.TextField(default=DEFAULT_WELCOME_MESSAGE)
+    clone_enabled = models.BooleanField(default=True)
+    cloned_from = models.ForeignKey(
+        "self",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="clones",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

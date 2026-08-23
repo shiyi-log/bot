@@ -31,6 +31,7 @@ import dayjs from 'dayjs';
 
 import {
   createTelegramBotApi,
+  cloneTelegramBotApi,
   deleteTelegramBotApi,
   getTelegramBotsApi,
   updateTelegramBotApi,
@@ -47,6 +48,7 @@ const items = ref<TelegramBot[]>([]);
 const formRef = ref<FormInstance>();
 const pagination = reactive({ page: 1, pageSize: 20, total: 0 });
 const form = reactive<TelegramBotPayload>({
+  clone_enabled: true,
   enabled: false,
   name: '',
   telegram_id: null,
@@ -88,13 +90,19 @@ const columns: TableColumnsType<TelegramBot> = [
     width: 110,
   },
   {
+    title: '克隆权限',
+    dataIndex: 'clone_enabled',
+    key: 'clone_enabled',
+    width: 110,
+  },
+  {
     title: '按钮数',
     dataIndex: 'button_count',
     key: 'button_count',
     width: 90,
   },
   { title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', width: 180 },
-  { title: '操作', key: 'actions', fixed: 'right', width: 210 },
+  { title: '操作', key: 'actions', fixed: 'right', width: 260 },
 ];
 
 async function loadData() {
@@ -119,6 +127,7 @@ async function loadData() {
 function openCreate() {
   editingId.value = null;
   Object.assign(form, {
+    clone_enabled: true,
     enabled: false,
     name: '',
     telegram_id: null,
@@ -134,6 +143,7 @@ function openCreate() {
 function openEdit(record: Record<string, any>) {
   editingId.value = record.id;
   Object.assign(form, {
+    clone_enabled: record.clone_enabled,
     enabled: record.enabled,
     name: record.name,
     telegram_id:
@@ -153,6 +163,7 @@ async function saveBot() {
   try {
     const telegramId = String(form.telegram_id ?? '').trim();
     const payload: TelegramBotPayload = {
+      clone_enabled: form.clone_enabled,
       enabled: form.enabled,
       name: form.name.trim(),
       telegram_id: telegramId || null,
@@ -178,6 +189,12 @@ async function removeBot(id: number) {
   await deleteTelegramBotApi(id);
   message.success('机器人已删除');
   if (items.value.length === 1 && pagination.page > 1) pagination.page -= 1;
+  await loadData();
+}
+
+async function cloneBot(record: Record<string, any>) {
+  await cloneTelegramBotApi(record.id, { billing_plan: 'standard' });
+  message.success('机器人已克隆，默认停用且未复制令牌配置');
   await loadData();
 }
 
@@ -259,7 +276,7 @@ onMounted(loadData);
           showTotal: (total: number) => `共 ${total} 条`,
         }"
         row-key="id"
-        :scroll="{ x: 1570 }"
+        :scroll="{ x: 1730 }"
         sticky
         @change="handleTableChange"
       >
@@ -285,6 +302,11 @@ onMounted(loadData);
               {{ record.welcome_enabled ? '发送' : '关闭' }}
             </Tag>
           </template>
+          <template v-else-if="column.key === 'clone_enabled'">
+            <Tag :color="record.clone_enabled ? 'processing' : 'default'">
+              {{ record.clone_enabled ? '允许' : '禁止' }}
+            </Tag>
+          </template>
           <template v-else-if="column.key === 'button_count'">
             <Button size="small" type="link" @click="openButtons(record)">
               {{ record.button_count }}
@@ -298,6 +320,13 @@ onMounted(loadData);
               <Button size="small" type="link" @click="openEdit(record)"
                 >编辑</Button
               >
+              <Popconfirm
+                v-if="record.clone_enabled"
+                title="复制欢迎配置和按钮并创建一个停用机器人？"
+                @confirm="cloneBot(record)"
+              >
+                <Button size="small" type="link">克隆</Button>
+              </Popconfirm>
               <Button size="small" type="link" @click="openButtons(record)"
                 >按钮</Button
               >
@@ -375,6 +404,9 @@ onMounted(loadData);
         </FormItem>
         <FormItem label="发送欢迎消息">
           <Switch v-model:checked="form.welcome_enabled" />
+        </FormItem>
+        <FormItem label="允许克隆">
+          <Switch v-model:checked="form.clone_enabled" />
         </FormItem>
         <FormItem
           label="欢迎消息"
