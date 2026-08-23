@@ -122,8 +122,7 @@ def check_session(session_string: str) -> SessionCheckResult:
 
 
 def _prepare_client(session_string: str) -> TelegramClient:
-    _require_network_enabled()
-    api_id, api_hash = _load_credentials()
+    api_id, api_hash = _load_runtime_configuration()
     client_error: TelegramAccountError | None = None
     try:
         return create_telegram_client(session_string, api_id, api_hash)
@@ -137,6 +136,15 @@ def _prepare_client(session_string: str) -> TelegramClient:
     client_error.__context__ = None
     client_error.__cause__ = None
     raise client_error
+
+
+def validate_runtime_configuration() -> None:
+    _load_runtime_configuration()
+
+
+def _load_runtime_configuration() -> tuple[int, str]:
+    _require_network_enabled()
+    return _load_credentials()
 
 
 def _require_network_enabled() -> None:

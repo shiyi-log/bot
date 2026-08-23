@@ -1,22 +1,33 @@
 import asyncio
+import json
 import os
 import traceback
 from dataclasses import dataclass
-from unittest.mock import patch
+from datetime import timedelta
+from unittest.mock import MagicMock, patch
 
-from django.test import TestCase, override_settings
+from django.db import IntegrityError, OperationalError, connection, transaction
+from django.test import TestCase, TransactionTestCase, override_settings
+from django.utils import timezone
 from telethon import errors
+from rest_framework.test import APIClient
 
 from botcore.crypto import decrypt_text, encrypt_text
-from botcore.models import BotSettings, TelegramLoginAccount
+from botcore.models import BotSettings, TelegramBot, TelegramLoginAccount
+from botcore.services import telegram_accounts as telegram_account_service_module
 from botcore.services.telegram_accounts import (
+    CodeSentResult,
+    LoginResult,
+    SessionCheckResult,
     TelegramAccountError,
+    TelegramUserInfo,
     check_session,
     create_telegram_client,
     normalize_phone,
     send_login_code,
     sign_in_with_code,
     sign_in_with_password,
+    validate_runtime_configuration,
 )
 
 
@@ -101,6 +112,25 @@ class TelegramAccountModelTests(TestCase):
 
         self.assertEqual(account.session_string, encrypted_session)
         self.assertEqual(account.session_string_plain, "fake-session-string")
+
+    def test_phone_is_database_unique(self):
+        TelegramLoginAccount.objects.create(
+            label="First fake account",
+            phone="+12025550100",
+        )
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            TelegramLoginAccount.objects.create(
+                label="Duplicate fake account",
+                phone="+12025550100",
+            )
+
+    def test_phone_cannot_be_empty(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            TelegramLoginAccount.objects.create(
+                label="Missing phone account",
+                phone="",
+            )
 
     def test_plain_properties_reject_bulk_updated_plaintext(self):
         account = TelegramLoginAccount.objects.create(
@@ -258,6 +288,15 @@ class TelegramAccountServiceTests(TestCase):
         rendered = f"{error!s} {error!r} {''.join(traceback.format_exception(error))}"
         for value in sensitive_values:
             self.assertNotIn(value, rendered)
+
+    def test_runtime_configuration_validation_has_no_client_or_secret_result(self):
+        with patch(
+            "botcore.services.telegram_accounts.create_telegram_client",
+        ) as create_client:
+            result = telegram_account_service_module.validate_runtime_configuration()
+
+        self.assertIsNone(result)
+        create_client.assert_not_called()
 
     def test_normalize_phone_accepts_international_variants(self):
         self.assertEqual(normalize_phone("００ (８６) 138-0000.0000"), "+8613800000000")
@@ -524,3 +563,947 @@ class TelegramAccountServiceTests(TestCase):
             self.assertIn("会话已失效", caught.exception.message)
             self.assert_safe_error(caught.exception, "fake-input-session")
             self.assertTrue(client.disconnected)
+
+
+@override_settings(SECRET_KEY="fake-test-secret", CONFIG_ENCRYPTION_KEY="fake-config-key")
+class TelegramAccountApiTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.runtime_preflight = patch(
+            "botcore.views.telegram_account_service.validate_runtime_configuration",
+        )
+        self.runtime_preflight.start()
+        self.addCleanup(self.runtime_preflight.stop)
+
+    def create_account(self, **overrides):
+        values = {
+            "label": "Fake account",
+            "phone": "+12025550100",
+            "status": TelegramLoginAccount.Status.PENDING,
+        }
+        values.update(overrides)
+        return TelegramLoginAccount.objects.create(**values)
+
+    def assert_response_has_no_secrets(self, value):
+        forbidden_keys = {
+            "telegram_api_hash", "api_hash", "phone_code_hash",
+            "session", "session_string", "code", "password",
+        }
+        if isinstance(value, dict):
+            for key, nested in value.items():
+                self.assertNotIn(str(key).lower(), forbidden_keys)
+                self.assert_response_has_no_secrets(nested)
+        elif isinstance(value, (list, tuple)):
+            for nested in value:
+                self.assert_response_has_no_secrets(nested)
+        rendered = json.dumps(value, ensure_ascii=False, default=str)
+        for secret in {
+            "fake-api-hash",
+            "fake-final-session",
+            "fake-new-phone-code-hash",
+            "fake-new-session",
+            "fake-password-session",
+            "fake-phone-code-hash",
+            "fake-secret-code",
+            "fake-secret-password",
+            "fake-session-string",
+            "fake-stale-session",
+            "fake-telegram-api-hash",
+        }:
+            self.assertNotIn(secret, rendered)
+
+    def test_list_retrieve_and_delete_expose_only_public_account_fields(self):
+        account = self.create_account(
+            telegram_id=10001,
+            username="fake_user",
+            first_name="Fake",
+            last_name="Account",
+            status=TelegramLoginAccount.Status.LOGGED_IN,
+            phone_code_hash="fake-phone-code-hash",
+            session_string="fake-session-string",
+            last_error="safe summary\n" + ("x" * 600),
+            last_checked_at=timezone.now(),
+        )
+        self.create_account(phone="+12025550101", label="Second account")
+
+        listed = self.client.get("/api/telegram-accounts/", {"page_size": 1})
+        retrieved = self.client.get(f"/api/telegram-accounts/{account.pk}/")
+
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(listed.data["count"], 2)
+        self.assertEqual(len(listed.data["results"]), 1)
+        self.assertEqual(retrieved.status_code, 200)
+        self.assertEqual(retrieved.data["telegram_id"], 10001)
+        self.assertTrue(retrieved.data["has_session"])
+        self.assertLessEqual(len(retrieved.data["last_error"]), 500)
+        self.assertNotIn("\n", retrieved.data["last_error"])
+        self.assert_response_has_no_secrets(listed.data)
+        self.assert_response_has_no_secrets(retrieved.data)
+
+        generic_create = self.client.post(
+            "/api/telegram-accounts/",
+            {"label": "Blocked", "phone": "+12025550102"},
+            format="json",
+        )
+        generic_update = self.client.patch(
+            f"/api/telegram-accounts/{account.pk}/",
+            {"label": "Blocked"},
+            format="json",
+        )
+
+        self.assertEqual(generic_create.status_code, 405)
+        self.assertEqual(generic_update.status_code, 405)
+
+        with patch("botcore.views.telegram_account_service") as service:
+            deleted = self.client.delete(f"/api/telegram-accounts/{account.pk}/")
+
+        self.assertEqual(deleted.status_code, 204)
+        self.assertFalse(TelegramLoginAccount.objects.filter(pk=account.pk).exists())
+        service.send_login_code.assert_not_called()
+        service.sign_in_with_code.assert_not_called()
+        service.sign_in_with_password.assert_not_called()
+        service.check_session.assert_not_called()
+
+    def test_start_creates_and_reuses_account_without_exposing_secrets(self):
+        result = CodeSentResult(
+            phone="+12025550100",
+            phone_code_hash="fake-phone-code-hash",
+            session_string="fake-session-string",
+        )
+        with patch("botcore.views.telegram_account_service.send_login_code", return_value=result) as send:
+            created = self.client.post("/api/telegram-accounts/login/start/", {
+                "phone": "+1 (202) 555-0100",
+                "label": "Primary",
+            }, format="json")
+            reused = self.client.post("/api/telegram-accounts/login/start/", {
+                "phone": "+12025550100",
+                "label": "Renamed",
+            }, format="json")
+
+        self.assertEqual(created.status_code, 200)
+        self.assertEqual(reused.status_code, 200)
+        self.assertEqual(created.data["account_id"], reused.data["account_id"])
+        self.assertEqual(created.data["next_step"], "code")
+        self.assertEqual(TelegramLoginAccount.objects.count(), 1)
+        account = TelegramLoginAccount.objects.get()
+        self.assertEqual(account.label, "Renamed")
+        self.assertEqual(account.status, TelegramLoginAccount.Status.CODE_SENT)
+        self.assertEqual(account.phone_code_hash_plain, "fake-phone-code-hash")
+        self.assertEqual(account.session_string_plain, "fake-session-string")
+        self.assertEqual(send.call_count, 2)
+        self.assert_response_has_no_secrets(created.data)
+        self.assert_response_has_no_secrets(reused.data)
+
+    def test_start_preflight_failure_does_not_create_or_mutate_accounts(self):
+        logged_in = self.create_account(
+            status=TelegramLoginAccount.Status.LOGGED_IN,
+            session_string="fake-session-string",
+        )
+        code_sent = self.create_account(
+            phone="+12025550101",
+            status=TelegramLoginAccount.Status.CODE_SENT,
+            phone_code_hash="fake-phone-code-hash",
+            session_string="fake-new-session",
+        )
+        snapshots = {
+            account.pk: self._account_state(account)
+            for account in (logged_in, code_sent)
+        }
+        with patch.dict(
+            os.environ,
+            {"ENABLE_TELEGRAM_ACCOUNT_NETWORK": "0"},
+            clear=False,
+        ), patch(
+            "botcore.views.telegram_account_service.validate_runtime_configuration",
+            wraps=validate_runtime_configuration,
+        ), patch(
+            "botcore.views.telegram_account_service.send_login_code",
+        ) as send:
+            responses = [
+                self.client.post("/api/telegram-accounts/login/start/", {
+                    "phone": logged_in.phone,
+                }, format="json"),
+                self.client.post("/api/telegram-accounts/login/start/", {
+                    "phone": code_sent.phone,
+                }, format="json"),
+                self.client.post("/api/telegram-accounts/login/start/", {
+                    "phone": "+12025550102",
+                }, format="json"),
+            ]
+
+        self.assertTrue(all(response.status_code == 503 for response in responses))
+        self.assertEqual(TelegramLoginAccount.objects.count(), 2)
+        send.assert_not_called()
+        for account in (logged_in, code_sent):
+            account.refresh_from_db()
+            self.assertEqual(self._account_state(account), snapshots[account.pk])
+
+    def test_start_credentials_preflight_failure_keeps_database_empty(self):
+        with patch.dict(
+            os.environ,
+            {
+                "ENABLE_TELEGRAM_ACCOUNT_NETWORK": "1",
+                "TELEGRAM_API_ID": "",
+                "TELEGRAM_API_HASH": "",
+            },
+            clear=False,
+        ), patch(
+            "botcore.views.telegram_account_service.validate_runtime_configuration",
+            wraps=validate_runtime_configuration,
+        ), patch(
+            "botcore.views.telegram_account_service.send_login_code",
+        ) as send:
+            response = self.client.post("/api/telegram-accounts/login/start/", {
+                "phone": "+12025550100",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertFalse(TelegramLoginAccount.objects.exists())
+        send.assert_not_called()
+
+    def test_start_integrity_race_returns_winner_without_external_call(self):
+        race_winner = TelegramLoginAccount(
+            id=99,
+            label="Race winner",
+            phone="+12025550100",
+            status=TelegramLoginAccount.Status.PENDING,
+            login_attempt_id="winner-attempt",
+            login_attempt_started_at=timezone.now(),
+        )
+        locked_queryset = MagicMock()
+        locked_queryset.filter.return_value.first.return_value = None
+        locked_queryset.get.return_value = race_winner
+        result = CodeSentResult(
+            phone="+12025550100",
+            phone_code_hash="fake-phone-code-hash",
+            session_string="fake-session-string",
+        )
+        with patch(
+            "botcore.views.telegram_account_service.send_login_code",
+            return_value=result,
+        ) as send, patch(
+            "botcore.views.TelegramLoginAccount.objects.select_for_update",
+            return_value=locked_queryset,
+        ), patch(
+            "botcore.views.TelegramLoginAccount.objects.create",
+            side_effect=IntegrityError,
+        ):
+            response = self.client.post("/api/telegram-accounts/login/start/", {
+                "phone": "+12025550100",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 409)
+        send.assert_not_called()
+        locked_queryset.get.assert_called_once_with(phone="+12025550100")
+        self.assert_response_has_no_secrets(response.data)
+
+    def test_start_lock_wait_observes_fresh_attempt_and_does_not_resend(self):
+        account = self.create_account(status=TelegramLoginAccount.Status.PENDING)
+        locked_queryset = MagicMock()
+
+        def locked_first():
+            refreshed = TelegramLoginAccount.objects.get(pk=account.pk)
+            refreshed.login_attempt_id = "winner-attempt"
+            refreshed.login_attempt_started_at = timezone.now()
+            refreshed.save()
+            return refreshed
+
+        locked_queryset.filter.return_value.first.side_effect = locked_first
+        with patch(
+            "botcore.views.TelegramLoginAccount.objects.select_for_update",
+            return_value=locked_queryset,
+        ), patch(
+            "botcore.views.telegram_account_service.send_login_code",
+        ) as send:
+            response = self.client.post("/api/telegram-accounts/login/start/", {
+                "phone": account.phone,
+            }, format="json")
+
+        self.assertEqual(response.status_code, 409)
+        send.assert_not_called()
+        self.assert_response_has_no_secrets(response.data)
+
+    def test_start_database_lock_error_is_safe_and_does_not_call_service(self):
+        result = CodeSentResult(
+            phone="+12025550100",
+            phone_code_hash="fake-phone-code-hash",
+            session_string="fake-session-string",
+        )
+        with patch(
+            "botcore.views.TelegramLoginAccount.objects.create",
+            side_effect=OperationalError("database is locked"),
+        ), patch(
+            "botcore.views.telegram_account_service.send_login_code",
+            return_value=result,
+        ) as send:
+            response = self.client.post("/api/telegram-accounts/login/start/", {
+                "phone": "+12025550100",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 409)
+        send.assert_not_called()
+        self.assertNotIn("database is locked", str(response.data))
+        self.assert_response_has_no_secrets(response.data)
+
+    def test_start_non_lock_database_error_is_not_disguised_as_conflict(self):
+        with patch(
+            "botcore.views.TelegramLoginAccount.objects.create",
+            side_effect=OperationalError("disk I/O error"),
+        ), self.assertRaises(OperationalError):
+            self.client.post("/api/telegram-accounts/login/start/", {
+                "phone": "+12025550100",
+            }, format="json")
+
+    def test_code_login_completes_public_identity(self):
+        account = self.create_account(
+            status=TelegramLoginAccount.Status.CODE_SENT,
+            phone_code_hash="fake-phone-code-hash",
+            session_string="fake-session-string",
+        )
+        result = LoginResult(
+            requires_password=False,
+            session_string="fake-final-session",
+            user=TelegramUserInfo(10001, "fake_user", "Fake", "Account"),
+        )
+        with patch("botcore.views.telegram_account_service.sign_in_with_code", return_value=result) as sign_in:
+            response = self.client.post("/api/telegram-accounts/login/code/", {
+                "account_id": account.pk,
+                "code": "00000",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["next_step"], "complete")
+        account.refresh_from_db()
+        self.assertEqual(account.status, TelegramLoginAccount.Status.LOGGED_IN)
+        self.assertEqual(account.telegram_id, 10001)
+        self.assertEqual(account.phone_code_hash, "")
+        self.assertEqual(account.session_string_plain, "fake-final-session")
+        self.assertIsNotNone(account.last_checked_at)
+        sign_in.assert_called_once_with(
+            account.phone, "00000", "fake-phone-code-hash", "fake-session-string",
+        )
+        self.assert_response_has_no_secrets(response.data)
+
+    def test_code_login_can_require_password_then_password_completes(self):
+        account = self.create_account(
+            status=TelegramLoginAccount.Status.CODE_SENT,
+            phone_code_hash="fake-phone-code-hash",
+            session_string="fake-session-string",
+        )
+        password_required = LoginResult(
+            requires_password=True,
+            session_string="fake-password-session",
+        )
+        completed = LoginResult(
+            requires_password=False,
+            session_string="fake-final-session",
+            user=TelegramUserInfo(10001, "fake_user", "Fake", "Account"),
+        )
+        with patch(
+            "botcore.views.telegram_account_service.sign_in_with_code",
+            return_value=password_required,
+        ):
+            code_response = self.client.post("/api/telegram-accounts/login/code/", {
+                "account_id": account.pk,
+                "code": "00000",
+            }, format="json")
+
+        self.assertEqual(code_response.status_code, 200)
+        self.assertEqual(code_response.data["next_step"], "password")
+        account.refresh_from_db()
+        self.assertEqual(account.status, TelegramLoginAccount.Status.PASSWORD_REQUIRED)
+        self.assertEqual(account.session_string_plain, "fake-password-session")
+
+        with patch(
+            "botcore.views.telegram_account_service.sign_in_with_password",
+            return_value=completed,
+        ) as sign_in:
+            password_response = self.client.post("/api/telegram-accounts/login/password/", {
+                "account_id": account.pk,
+                "password": "fake-secret-password",
+            }, format="json")
+
+        self.assertEqual(password_response.status_code, 200)
+        self.assertEqual(password_response.data["next_step"], "complete")
+        account.refresh_from_db()
+        self.assertEqual(account.status, TelegramLoginAccount.Status.LOGGED_IN)
+        self.assertEqual(account.telegram_id, 10001)
+        sign_in.assert_called_once_with("fake-secret-password", "fake-password-session")
+        self.assert_response_has_no_secrets(code_response.data)
+        self.assert_response_has_no_secrets(password_response.data)
+
+    def test_check_refreshes_authorized_account_or_marks_session_expired(self):
+        account = self.create_account(
+            status=TelegramLoginAccount.Status.LOGGED_IN,
+            session_string="fake-session-string",
+        )
+        authorized = SessionCheckResult(
+            authorized=True,
+            user=TelegramUserInfo(10001, "refreshed", "New", "Name"),
+        )
+        with patch("botcore.views.telegram_account_service.check_session", return_value=authorized):
+            response = self.client.post(f"/api/telegram-accounts/{account.pk}/check/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], TelegramLoginAccount.Status.LOGGED_IN)
+        self.assertEqual(response.data["username"], "refreshed")
+        self.assert_response_has_no_secrets(response.data)
+
+        with patch(
+            "botcore.views.telegram_account_service.check_session",
+            return_value=SessionCheckResult(authorized=False),
+        ):
+            response = self.client.post(f"/api/telegram-accounts/{account.pk}/check/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], TelegramLoginAccount.Status.SESSION_EXPIRED)
+        self.assert_response_has_no_secrets(response.data)
+
+    def test_check_unauthorized_service_error_marks_expired_and_returns_account(self):
+        account = self.create_account(
+            status=TelegramLoginAccount.Status.LOGGED_IN,
+            session_string="fake-session-string",
+        )
+        error = TelegramAccountError(
+            "Telegram 会话已失效，请重新登录。",
+            code="session_unauthorized",
+        )
+
+        with patch(
+            "botcore.views.telegram_account_service.check_session",
+            side_effect=error,
+        ):
+            response = self.client.post(f"/api/telegram-accounts/{account.pk}/check/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], account.pk)
+        self.assertEqual(response.data["status"], TelegramLoginAccount.Status.SESSION_EXPIRED)
+        self.assertIn("会话已失效", response.data["last_error"])
+        self.assert_response_has_no_secrets(response.data)
+
+    def test_login_actions_validate_input_state_and_session_before_service_calls(self):
+        pending = self.create_account()
+        code_sent = self.create_account(
+            phone="+12025550101",
+            status=TelegramLoginAccount.Status.CODE_SENT,
+        )
+        password_required = self.create_account(
+            phone="+12025550102",
+            status=TelegramLoginAccount.Status.PASSWORD_REQUIRED,
+        )
+        with patch("botcore.views.telegram_account_service") as service:
+            responses = [
+                self.client.post("/api/telegram-accounts/login/start/", {"phone": "invalid"}, format="json"),
+                self.client.post("/api/telegram-accounts/login/code/", {"account_id": pending.pk, "code": "1"}, format="json"),
+                self.client.post("/api/telegram-accounts/login/code/", {"account_id": code_sent.pk, "code": ""}, format="json"),
+                self.client.post("/api/telegram-accounts/login/password/", {"account_id": code_sent.pk, "password": "x"}, format="json"),
+                self.client.post("/api/telegram-accounts/login/password/", {"account_id": password_required.pk, "password": ""}, format="json"),
+                self.client.post(f"/api/telegram-accounts/{pending.pk}/check/"),
+            ]
+
+        self.assertTrue(all(response.status_code == 400 for response in responses))
+        for response in responses:
+            self.assert_response_has_no_secrets(response.data)
+        service.send_login_code.assert_not_called()
+        service.sign_in_with_code.assert_not_called()
+        service.sign_in_with_password.assert_not_called()
+        service.check_session.assert_not_called()
+
+    def test_service_errors_are_safe_and_use_stable_http_statuses(self):
+        account = self.create_account(
+            status=TelegramLoginAccount.Status.CODE_SENT,
+            phone_code_hash="fake-phone-code-hash",
+            session_string="fake-session-string",
+        )
+        cases = [
+            (TelegramAccountError("Telegram 账号网络访问未启用。", code="network_disabled"), 503),
+            (TelegramAccountError("Telegram API 凭据未配置完整。", code="credentials_missing"), 503),
+            (TelegramAccountError("操作过于频繁，请稍后重试。", code="flood_wait", retry_after=12), 429),
+            (TelegramAccountError("无法连接 Telegram，请稍后重试。", code="network_error"), 502),
+            (TelegramAccountError("验证码错误，请重新输入。", code="invalid_code"), 400),
+        ]
+        for error, expected_status in cases:
+            with self.subTest(error=error.code), patch(
+                "botcore.views.telegram_account_service.sign_in_with_code",
+                side_effect=error,
+            ):
+                response = self.client.post("/api/telegram-accounts/login/code/", {
+                    "account_id": account.pk,
+                    "code": "fake-secret-code",
+                }, format="json")
+
+            self.assertEqual(response.status_code, expected_status)
+            self.assert_response_has_no_secrets(response.data)
+            self.assertNotIn("fake-secret-code", str(response.data))
+            account.refresh_from_db()
+            self.assertLessEqual(len(account.last_error), 500)
+
+    def test_late_code_error_cannot_overwrite_new_login_attempt(self):
+        account = self.create_account(
+            status=TelegramLoginAccount.Status.CODE_SENT,
+            phone_code_hash="fake-old-phone-code-hash",
+            session_string="fake-old-session",
+        )
+
+        def late_error(*args):
+            refreshed = TelegramLoginAccount.objects.get(pk=account.pk)
+            refreshed.phone_code_hash = "fake-new-phone-code-hash"
+            refreshed.session_string = "fake-new-session"
+            refreshed.last_error = ""
+            refreshed.save()
+            raise TelegramAccountError("旧验证码错误。", code="invalid_code")
+
+        with patch(
+            "botcore.views.telegram_account_service.sign_in_with_code",
+            side_effect=late_error,
+        ):
+            response = self.client.post("/api/telegram-accounts/login/code/", {
+                "account_id": account.pk,
+                "code": "00000",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 409)
+        account.refresh_from_db()
+        self.assertEqual(account.phone_code_hash_plain, "fake-new-phone-code-hash")
+        self.assertEqual(account.session_string_plain, "fake-new-session")
+        self.assertEqual(account.last_error, "")
+
+    def test_late_check_error_cannot_overwrite_newer_success(self):
+        account = self.create_account(
+            status=TelegramLoginAccount.Status.LOGGED_IN,
+            session_string="fake-session-string",
+            username="old_name",
+        )
+
+        def late_error(*args):
+            refreshed = TelegramLoginAccount.objects.get(pk=account.pk)
+            refreshed.username = "new_name"
+            refreshed.last_checked_at = timezone.now()
+            refreshed.last_error = ""
+            refreshed.save()
+            raise TelegramAccountError("迟到的网络错误。", code="network_error")
+
+        with patch(
+            "botcore.views.telegram_account_service.check_session",
+            side_effect=late_error,
+        ):
+            response = self.client.post(f"/api/telegram-accounts/{account.pk}/check/")
+
+        self.assertEqual(response.status_code, 409)
+        account.refresh_from_db()
+        self.assertEqual(account.username, "new_name")
+        self.assertEqual(account.last_error, "")
+
+    def test_error_write_does_not_block_earlier_successful_code_result(self):
+        account = self.create_account(
+            status=TelegramLoginAccount.Status.CODE_SENT,
+            phone_code_hash="fake-phone-code-hash",
+            session_string="fake-session-string",
+        )
+        successful_result = LoginResult(
+            requires_password=False,
+            session_string="fake-final-session",
+            user=TelegramUserInfo(10001, "fake_user", "Fake", "Account"),
+        )
+        call_count = 0
+
+        def overlapping_sign_in(*args):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:
+                raise TelegramAccountError("验证码错误，请重新输入。", code="invalid_code")
+            inner_response = self.client.post("/api/telegram-accounts/login/code/", {
+                "account_id": account.pk,
+                "code": "11111",
+            }, format="json")
+            self.assertEqual(inner_response.status_code, 400)
+            return successful_result
+
+        with patch(
+            "botcore.views.telegram_account_service.sign_in_with_code",
+            side_effect=overlapping_sign_in,
+        ):
+            response = self.client.post("/api/telegram-accounts/login/code/", {
+                "account_id": account.pk,
+                "code": "00000",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        account.refresh_from_db()
+        self.assertEqual(account.status, TelegramLoginAccount.Status.LOGGED_IN)
+        self.assertEqual(account.session_string_plain, "fake-final-session")
+        self.assertEqual(account.last_error, "")
+        self.assert_response_has_no_secrets(response.data)
+
+    def test_start_password_and_check_service_errors_preserve_safe_states(self):
+        network_disabled = TelegramAccountError(
+            "Telegram 账号网络访问未启用。",
+            code="network_disabled",
+        )
+        with patch(
+            "botcore.views.telegram_account_service.send_login_code",
+            side_effect=network_disabled,
+        ):
+            start_response = self.client.post("/api/telegram-accounts/login/start/", {
+                "phone": "+12025550100",
+            }, format="json")
+
+        self.assertEqual(start_response.status_code, 503)
+        failed_account = TelegramLoginAccount.objects.get()
+        self.assertEqual(failed_account.status, TelegramLoginAccount.Status.ERROR)
+        self.assertEqual(failed_account.login_attempt_id, "")
+        self.assertIsNone(failed_account.login_attempt_started_at)
+        self.assert_response_has_no_secrets(start_response.data)
+
+        account = self.create_account(
+            phone="+12025550101",
+            status=TelegramLoginAccount.Status.PASSWORD_REQUIRED,
+            session_string="fake-password-session",
+        )
+        invalid_password = TelegramAccountError(
+            "二级密码错误，请重新输入。",
+            code="invalid_password",
+        )
+        with patch(
+            "botcore.views.telegram_account_service.sign_in_with_password",
+            side_effect=invalid_password,
+        ):
+            password_response = self.client.post("/api/telegram-accounts/login/password/", {
+                "account_id": account.pk,
+                "password": "fake-secret-password",
+            }, format="json")
+
+        self.assertEqual(password_response.status_code, 400)
+        account.refresh_from_db()
+        self.assertEqual(account.status, TelegramLoginAccount.Status.PASSWORD_REQUIRED)
+        self.assertIn("密码错误", account.last_error)
+        self.assert_response_has_no_secrets(password_response.data)
+        self.assertNotIn("fake-secret-password", str(password_response.data))
+
+        network_error = TelegramAccountError(
+            "无法连接 Telegram，请稍后重试。",
+            code="network_error",
+        )
+        with patch(
+            "botcore.views.telegram_account_service.check_session",
+            side_effect=network_error,
+        ):
+            check_response = self.client.post(f"/api/telegram-accounts/{account.pk}/check/")
+
+        self.assertEqual(check_response.status_code, 502)
+        account.refresh_from_db()
+        self.assertEqual(account.status, TelegramLoginAccount.Status.PASSWORD_REQUIRED)
+        self.assertIn("无法连接", account.last_error)
+        self.assert_response_has_no_secrets(check_response.data)
+
+    def test_stale_code_request_cannot_overwrite_newer_state(self):
+        account = self.create_account(
+            status=TelegramLoginAccount.Status.CODE_SENT,
+            phone_code_hash="fake-phone-code-hash",
+            session_string="fake-session-string",
+        )
+
+        def stale_result(*args):
+            TelegramLoginAccount.objects.filter(pk=account.pk).update(
+                status=TelegramLoginAccount.Status.PASSWORD_REQUIRED,
+            )
+            return LoginResult(
+                requires_password=False,
+                session_string="fake-stale-session",
+                user=TelegramUserInfo(10001),
+            )
+
+        with patch(
+            "botcore.views.telegram_account_service.sign_in_with_code",
+            side_effect=stale_result,
+        ):
+            response = self.client.post("/api/telegram-accounts/login/code/", {
+                "account_id": account.pk,
+                "code": "00000",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 409)
+        account.refresh_from_db()
+        self.assertEqual(account.status, TelegramLoginAccount.Status.PASSWORD_REQUIRED)
+        self.assertNotEqual(account.session_string_plain, "fake-stale-session")
+
+    def test_stale_code_request_cannot_overwrite_newer_code_sent_session(self):
+        account = self.create_account(
+            status=TelegramLoginAccount.Status.CODE_SENT,
+            phone_code_hash="fake-old-phone-code-hash",
+            session_string="fake-old-session",
+        )
+
+        def stale_result(*args):
+            refreshed = TelegramLoginAccount.objects.get(pk=account.pk)
+            refreshed.phone_code_hash = "fake-new-phone-code-hash"
+            refreshed.session_string = "fake-new-session"
+            refreshed.save()
+            return LoginResult(
+                requires_password=False,
+                session_string="fake-stale-session",
+                user=TelegramUserInfo(10001),
+            )
+
+        with patch(
+            "botcore.views.telegram_account_service.sign_in_with_code",
+            side_effect=stale_result,
+        ):
+            response = self.client.post("/api/telegram-accounts/login/code/", {
+                "account_id": account.pk,
+                "code": "00000",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 409)
+        account.refresh_from_db()
+        self.assertEqual(account.status, TelegramLoginAccount.Status.CODE_SENT)
+        self.assertEqual(account.phone_code_hash_plain, "fake-new-phone-code-hash")
+        self.assertEqual(account.session_string_plain, "fake-new-session")
+
+    def test_deleted_account_after_start_network_result_returns_conflict(self):
+        def delete_then_succeed(phone):
+            TelegramLoginAccount.objects.get(phone=phone).delete()
+            return CodeSentResult(
+                phone=phone,
+                phone_code_hash="fake-phone-code-hash",
+                session_string="fake-session-string",
+            )
+
+        with patch(
+            "botcore.views.telegram_account_service.send_login_code",
+            side_effect=delete_then_succeed,
+        ):
+            response = self.client.post("/api/telegram-accounts/login/start/", {
+                "phone": "+12025550100",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertFalse(TelegramLoginAccount.objects.exists())
+
+    def test_deleted_account_after_start_network_error_returns_conflict(self):
+        def delete_then_fail(phone):
+            TelegramLoginAccount.objects.get(phone=phone).delete()
+            raise TelegramAccountError("无法连接 Telegram，请稍后重试。", code="network_error")
+
+        with patch(
+            "botcore.views.telegram_account_service.send_login_code",
+            side_effect=delete_then_fail,
+        ):
+            response = self.client.post("/api/telegram-accounts/login/start/", {
+                "phone": "+12025550100",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertFalse(TelegramLoginAccount.objects.exists())
+
+    def test_deleted_account_after_code_or_password_result_returns_conflict(self):
+        cases = [
+            (TelegramLoginAccount.Status.CODE_SENT, "login/code", {"code": "00000"}, "sign_in_with_code"),
+            (TelegramLoginAccount.Status.PASSWORD_REQUIRED, "login/password", {"password": "fake-secret-password"}, "sign_in_with_password"),
+        ]
+        for index, (account_status, path, payload, service_name) in enumerate(cases):
+            with self.subTest(path=path):
+                account = self.create_account(
+                    phone=f"+1202555010{index}",
+                    status=account_status,
+                    phone_code_hash="fake-phone-code-hash" if index == 0 else "",
+                    session_string="fake-session-string",
+                )
+
+                def delete_then_succeed(*args):
+                    TelegramLoginAccount.objects.filter(pk=account.pk).delete()
+                    return LoginResult(
+                        requires_password=False,
+                        session_string="fake-final-session",
+                        user=TelegramUserInfo(10001),
+                    )
+
+                with patch(
+                    f"botcore.views.telegram_account_service.{service_name}",
+                    side_effect=delete_then_succeed,
+                ):
+                    response = self.client.post(
+                        f"/api/telegram-accounts/{path}/",
+                        {"account_id": account.pk, **payload},
+                        format="json",
+                    )
+
+                self.assertEqual(response.status_code, 409)
+                self.assertFalse(TelegramLoginAccount.objects.filter(pk=account.pk).exists())
+
+    def test_deleted_account_after_code_error_or_check_result_returns_conflict(self):
+        code_account = self.create_account(
+            status=TelegramLoginAccount.Status.CODE_SENT,
+            phone_code_hash="fake-phone-code-hash",
+            session_string="fake-session-string",
+        )
+
+        def delete_then_code_error(*args):
+            TelegramLoginAccount.objects.filter(pk=code_account.pk).delete()
+            raise TelegramAccountError("验证码错误，请重新输入。", code="invalid_code")
+
+        with patch(
+            "botcore.views.telegram_account_service.sign_in_with_code",
+            side_effect=delete_then_code_error,
+        ):
+            code_response = self.client.post("/api/telegram-accounts/login/code/", {
+                "account_id": code_account.pk,
+                "code": "00000",
+            }, format="json")
+
+        check_account = self.create_account(
+            phone="+12025550101",
+            status=TelegramLoginAccount.Status.LOGGED_IN,
+            session_string="fake-session-string",
+        )
+
+        def delete_then_check_result(*args):
+            TelegramLoginAccount.objects.filter(pk=check_account.pk).delete()
+            return SessionCheckResult(authorized=False)
+
+        with patch(
+            "botcore.views.telegram_account_service.check_session",
+            side_effect=delete_then_check_result,
+        ):
+            check_response = self.client.post(
+                f"/api/telegram-accounts/{check_account.pk}/check/",
+            )
+
+        unauthorized_account = self.create_account(
+            phone="+12025550102",
+            status=TelegramLoginAccount.Status.LOGGED_IN,
+            session_string="fake-session-string",
+        )
+
+        def delete_then_unauthorized(*args):
+            TelegramLoginAccount.objects.filter(pk=unauthorized_account.pk).delete()
+            raise TelegramAccountError(
+                "Telegram 会话已失效，请重新登录。",
+                code="session_unauthorized",
+            )
+
+        with patch(
+            "botcore.views.telegram_account_service.check_session",
+            side_effect=delete_then_unauthorized,
+        ):
+            unauthorized_response = self.client.post(
+                f"/api/telegram-accounts/{unauthorized_account.pk}/check/",
+            )
+
+        self.assertEqual(code_response.status_code, 409)
+        self.assertEqual(check_response.status_code, 409)
+        self.assertEqual(unauthorized_response.status_code, 409)
+        self.assertFalse(TelegramLoginAccount.objects.exists())
+
+    @staticmethod
+    def _account_state(account):
+        return (
+            account.status,
+            account.phone_code_hash,
+            account.session_string,
+            account.login_attempt_id,
+            account.login_attempt_started_at,
+            account.last_error,
+            account.updated_at,
+        )
+
+
+@override_settings(SECRET_KEY="fake-test-secret", CONFIG_ENCRYPTION_KEY="fake-config-key")
+class TelegramAccountStartTransactionTests(TransactionTestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.runtime_preflight = patch(
+            "botcore.views.telegram_account_service.validate_runtime_configuration",
+        )
+        self.runtime_preflight.start()
+        self.addCleanup(self.runtime_preflight.stop)
+
+    def test_start_calls_network_outside_atomic_and_blocks_overlapping_same_phone(self):
+        overlapping_responses = []
+
+        def send_code(phone):
+            self.assertFalse(connection.in_atomic_block)
+            TelegramBot.objects.create(
+                name="Concurrent database writer",
+                token_env_var="CONCURRENT_DATABASE_WRITER_TOKEN",
+            )
+            overlapping_responses.append(
+                self.client.post("/api/telegram-accounts/login/start/", {
+                    "phone": phone,
+                }, format="json"),
+            )
+            return CodeSentResult(
+                phone=phone,
+                phone_code_hash="fake-phone-code-hash",
+                session_string="fake-session-string",
+            )
+
+        with patch(
+            "botcore.views.telegram_account_service.send_login_code",
+            side_effect=send_code,
+        ) as send:
+            response = self.client.post("/api/telegram-accounts/login/start/", {
+                "phone": "+12025550100",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(overlapping_responses[0].status_code, 409)
+        self.assertEqual(send.call_count, 1)
+        self.assertTrue(TelegramBot.objects.filter(name="Concurrent database writer").exists())
+
+    def test_start_discards_result_when_attempt_was_replaced(self):
+        replacement_attempt_id = "replacement-attempt"
+
+        def replace_attempt(phone):
+            TelegramLoginAccount.objects.filter(phone=phone).update(
+                login_attempt_id=replacement_attempt_id,
+            )
+            return CodeSentResult(
+                phone=phone,
+                phone_code_hash="fake-stale-phone-code-hash",
+                session_string="fake-stale-session",
+            )
+
+        with patch(
+            "botcore.views.telegram_account_service.send_login_code",
+            side_effect=replace_attempt,
+        ):
+            response = self.client.post("/api/telegram-accounts/login/start/", {
+                "phone": "+12025550100",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 409)
+        account = TelegramLoginAccount.objects.get()
+        self.assertEqual(account.login_attempt_id, replacement_attempt_id)
+        self.assertEqual(account.status, TelegramLoginAccount.Status.PENDING)
+        self.assertEqual(account.phone_code_hash_plain, "")
+        self.assertEqual(account.session_string_plain, "")
+
+    def test_start_takes_over_expired_pending_attempt(self):
+        TelegramLoginAccount.objects.create(
+            label="Abandoned attempt",
+            phone="+12025550100",
+            status=TelegramLoginAccount.Status.PENDING,
+            login_attempt_id="abandoned-attempt",
+            login_attempt_started_at=timezone.now() - timedelta(minutes=3),
+        )
+        result = CodeSentResult(
+            phone="+12025550100",
+            phone_code_hash="fake-phone-code-hash",
+            session_string="fake-session-string",
+        )
+
+        with patch(
+            "botcore.views.telegram_account_service.send_login_code",
+            return_value=result,
+        ) as send:
+            response = self.client.post("/api/telegram-accounts/login/start/", {
+                "phone": "+12025550100",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        send.assert_called_once_with("+12025550100")
+        account = TelegramLoginAccount.objects.get()
+        self.assertEqual(account.status, TelegramLoginAccount.Status.CODE_SENT)
+        self.assertEqual(account.login_attempt_id, "")
+        self.assertIsNone(account.login_attempt_started_at)

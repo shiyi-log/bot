@@ -137,7 +137,7 @@ class TelegramLoginAccount(models.Model):
         ERROR = "error", "Error"
 
     label = models.CharField(max_length=128)
-    phone = models.CharField(max_length=32)
+    phone = models.CharField(max_length=32, unique=True)
     telegram_id = models.BigIntegerField(null=True, blank=True, db_index=True)
     username = models.CharField(max_length=64, blank=True)
     first_name = models.CharField(max_length=128, blank=True)
@@ -145,6 +145,8 @@ class TelegramLoginAccount(models.Model):
     status = models.CharField(max_length=32, choices=Status.choices, default=Status.PENDING)
     phone_code_hash = models.TextField(blank=True)
     session_string = models.TextField(blank=True)
+    login_attempt_id = models.CharField(max_length=32, blank=True)
+    login_attempt_started_at = models.DateTimeField(null=True, blank=True)
     last_error = models.TextField(blank=True)
     last_checked_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -152,6 +154,12 @@ class TelegramLoginAccount(models.Model):
 
     class Meta:
         ordering = ["-updated_at", "-id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(phone=""),
+                name="telegram_login_account_phone_not_blank",
+            ),
+        ]
 
     @property
     def phone_code_hash_plain(self) -> str:

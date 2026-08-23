@@ -9,6 +9,7 @@ from .models import (
     TelegramBotButton,
     TelegramGroup,
     TelegramGroupMember,
+    TelegramLoginAccount,
     TelegramUser,
     TronAddress,
 )
@@ -58,6 +59,9 @@ class TelegramGroupMemberSerializer(serializers.ModelSerializer):
 
 
 class BotSettingsSerializer(serializers.ModelSerializer):
+    telegram_api_hash_configured = serializers.SerializerMethodField()
+    telegram_api_hash_preview = serializers.SerializerMethodField()
+    telegram_api_hash = serializers.CharField(write_only=True, required=False, allow_blank=True)
     tron_api_key_configured = serializers.SerializerMethodField()
     tron_api_key_preview = serializers.SerializerMethodField()
     tron_api_key = serializers.CharField(write_only=True, required=False, allow_blank=True)
@@ -65,17 +69,36 @@ class BotSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = BotSettings
         fields = [
+            "telegram_api_id", "telegram_api_hash", "telegram_api_hash_configured",
+            "telegram_api_hash_preview",
             "tron_monitor_enabled", "tron_api_url", "tron_api_key_env_var",
             "tron_api_key", "tron_api_key_configured", "tron_api_key_preview",
             "tron_poll_interval", "updated_at",
         ]
-        read_only_fields = ["tron_api_key_configured", "updated_at"]
+        read_only_fields = [
+            "telegram_api_hash_configured", "telegram_api_hash_preview",
+            "tron_api_key_configured", "tron_api_key_preview", "updated_at",
+        ]
+
+    def get_telegram_api_hash_configured(self, obj):
+        return bool(self._telegram_api_hash_value(obj))
+
+    def get_telegram_api_hash_preview(self, obj):
+        return self._masked_preview(self._telegram_api_hash_value(obj))
+
+    @staticmethod
+    def _telegram_api_hash_value(obj):
+        return obj.telegram_api_hash_plain.strip() or os.getenv("TELEGRAM_API_HASH", "").strip()
 
     def get_tron_api_key_configured(self, obj):
         return bool(obj.tron_api_key.strip() or os.getenv(obj.tron_api_key_env_var, "").strip())
 
     def get_tron_api_key_preview(self, obj):
         value = obj.tron_api_key.strip() or os.getenv(obj.tron_api_key_env_var, "").strip()
+        return self._masked_preview(value)
+
+    @staticmethod
+    def _masked_preview(value):
         if not value:
             return ""
         if len(value) <= 6:
@@ -83,10 +106,27 @@ class BotSettingsSerializer(serializers.ModelSerializer):
         return f"{value[:3]}***{value[-3:]}"
 
     def update(self, instance, validated_data):
+        telegram_api_hash = validated_data.pop("telegram_api_hash", serializers.empty)
+        if telegram_api_hash is not serializers.empty:
+            instance.telegram_api_hash = telegram_api_hash.strip()
         api_key = validated_data.pop("tron_api_key", serializers.empty)
         if api_key is not serializers.empty:
             instance.tron_api_key = api_key.strip()
         return super().update(instance, validated_data)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not instance.telegram_api_id.strip():
+            environment_api_id = os.getenv("TELEGRAM_API_ID", "").strip()
+            if environment_api_id.isdecimal() and int(environment_api_id) > 0:
+                data["telegram_api_id"] = environment_api_id
+        return data
+
+    def validate_telegram_api_id(self, value):
+        value = value.strip()
+        if value and (not value.isdecimal() or int(value) <= 0):
+            raise serializers.ValidationError("Telegram API ID must be a positive integer.")
+        return value
 
     def validate_tron_api_url(self, value):
         value = value.strip().rstrip("/")
@@ -139,6 +179,26 @@ class TelegramBotSerializer(serializers.ModelSerializer):
         if not re.fullmatch(r"[A-Z][A-Z0-9_]{2,63}", value):
             raise serializers.ValidationError("Use an uppercase environment variable name, for example BOT_MAIN_TOKEN.")
         return value
+
+
+class TelegramLoginAccountSerializer(serializers.ModelSerializer):
+    has_session = serializers.SerializerMethodField()
+    last_error = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TelegramLoginAccount
+        fields = [
+            "id", "label", "phone", "telegram_id", "username", "first_name",
+            "last_name", "status", "has_session", "last_error", "last_checked_at",
+            "created_at", "updated_at",
+        ]
+        read_only_fields = fields
+
+    def get_has_session(self, obj):
+        return bool(obj.session_string_plain)
+
+    def get_last_error(self, obj):
+        return " ".join(obj.last_error.split())[:500]
 
 
 class TelegramBotButtonSerializer(serializers.ModelSerializer):

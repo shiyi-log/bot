@@ -8,6 +8,7 @@ from .views import (
     TelegramBotViewSet,
     TelegramGroupMemberViewSet,
     TelegramGroupViewSet,
+    TelegramLoginAccountViewSet,
     TelegramUserViewSet,
     TronAddressViewSet,
 )
@@ -18,6 +19,7 @@ router.register("bot-buttons", TelegramBotButtonViewSet, basename="telegram-bot-
 router.register("users", TelegramUserViewSet, basename="telegram-user")
 router.register("groups", TelegramGroupViewSet, basename="telegram-group")
 router.register("members", TelegramGroupMemberViewSet, basename="telegram-group-member")
+router.register("telegram-accounts", TelegramLoginAccountViewSet, basename="telegram-login-account")
 router.register("tron/addresses", TronAddressViewSet, basename="tron-address")
 
 urlpatterns = [

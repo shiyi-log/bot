@@ -1,7 +1,10 @@
+import os
+from unittest.mock import patch
+
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from botcore.models import TelegramBot, TelegramGroup, TelegramGroupMember, TelegramUser
+from botcore.models import BotSettings, TelegramBot, TelegramGroup, TelegramGroupMember, TelegramUser
 
 VALID_ADDRESS = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
 
@@ -39,6 +42,70 @@ class ApiContractTests(TestCase):
             "tron_api_key_env_var": "not-a-valid-name",
         }, format="json")
         self.assertEqual(invalid.status_code, 400)
+
+    def test_telegram_settings_hide_hash_and_preserve_omitted_hash(self):
+        response = self.client.patch("/api/settings/", {
+            "telegram_api_id": "123456",
+            "telegram_api_hash": "fake-telegram-api-hash",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["telegram_api_id"], "123456")
+        self.assertTrue(response.data["telegram_api_hash_configured"])
+        self.assertEqual(response.data["telegram_api_hash_preview"], "fak***ash")
+        self.assertNotIn("telegram_api_hash", response.data)
+
+        response = self.client.patch("/api/settings/", {"tron_poll_interval": 45}, format="json")
+
+        self.assertTrue(response.data["telegram_api_hash_configured"])
+        self.assertEqual(BotSettings.load().telegram_api_hash_plain, "fake-telegram-api-hash")
+
+    def test_telegram_settings_clear_database_hash_and_fall_back_to_environment(self):
+        settings = BotSettings.load()
+        settings.telegram_api_id = "123456"
+        settings.telegram_api_hash = "fake-database-api-hash"
+        settings.save()
+
+        with patch.dict(os.environ, {
+            "TELEGRAM_API_ID": "654321",
+            "TELEGRAM_API_HASH": "fake-environment-api-hash",
+        }, clear=False):
+            response = self.client.patch("/api/settings/", {
+                "telegram_api_id": "",
+                "telegram_api_hash": "",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["telegram_api_id"], "654321")
+        self.assertTrue(response.data["telegram_api_hash_configured"])
+        self.assertEqual(response.data["telegram_api_hash_preview"], "fak***ash")
+        self.assertNotIn("telegram_api_hash", response.data)
+        settings.refresh_from_db()
+        self.assertEqual(settings.telegram_api_id, "")
+        self.assertEqual(settings.telegram_api_hash, "")
+
+    def test_telegram_settings_database_values_take_precedence_over_environment(self):
+        settings = BotSettings.load()
+        settings.telegram_api_id = "123456"
+        settings.telegram_api_hash = "database-api-hash"
+        settings.save()
+
+        with patch.dict(os.environ, {
+            "TELEGRAM_API_ID": "654321",
+            "TELEGRAM_API_HASH": "environment-api-hash",
+        }, clear=False):
+            response = self.client.get("/api/settings/")
+
+        self.assertEqual(response.data["telegram_api_id"], "123456")
+        self.assertEqual(response.data["telegram_api_hash_preview"], "dat***ash")
+        self.assertNotIn("telegram_api_hash", response.data)
+
+    def test_telegram_api_id_rejects_invalid_non_numeric_value(self):
+        response = self.client.patch("/api/settings/", {
+            "telegram_api_id": "not-a-number",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 400)
 
     def test_user_filter_group_list_and_dashboard(self):
         TelegramUser.objects.create(telegram_id=10, username="active", is_active=True)
