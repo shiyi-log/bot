@@ -1,5 +1,13 @@
 # 版本记录
 
+## v0.4.0 - 2026-08-24
+
+完成 Telegram 客户端账号管理。新增 `TelegramLoginAccount`、加密会话与验证码哈希、手机号唯一迁移清理，以及真实 Telethon 三步登录接口。账号资料接口为只读集合，通用 POST/PATCH 返回 405；账号搜索覆盖手机号、Telegram ID、用户名、姓名和备注。
+
+运行设置新增 `telegram_api_id`、`telegram_api_hash`、`telegram_api_hash_configured` 和 `telegram_api_hash_preview`。API Hash、验证码哈希和 Telethon session 使用 Fernet 加密，原值不会通过响应返回。`ENABLE_TELEGRAM_ACCOUNT_NETWORK=1` 是真实个人账号网络调用的独立开关，测试全部使用假 Telethon 客户端；本轮未发送真实验证码。
+
+验证：Django 后端测试、迁移测试、系统检查和迁移漂移检查通过；Vben typecheck、oxlint 和生产构建通过。构建仍有既有 `%VITE_APP_TITLE%` 环境变量警告。
+
 ## v0.3.4 - 2026-08-23
 
 新增机器人级 `clone_enabled` 权限与 `POST /api/bots/{id}/clone/`。仅允许克隆已开放权限的机器人；克隆只复制欢迎消息配置和按钮，不复制 Telegram ID、用户名、启用状态或令牌信息，并自动生成唯一令牌环境变量名。接口接受可选 `billing_plan`，返回预留的 `billing` 状态，但当前模板不接入收费、支付或订单执行。

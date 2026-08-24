@@ -15,7 +15,19 @@ Returns `telegram_users`, `telegram_groups`, `telegram_bots`, `active_tron_addre
 - `GET /api/settings/`
 - `PATCH /api/settings/`
 
-Writable fields: `tron_monitor_enabled`, `tron_api_url`, `tron_api_key_env_var`, `tron_api_key`, and `tron_poll_interval`. The interval must be from 5 to 3600 seconds. `tron_api_url` must use `http://` or `https://`; `tron_api_key_env_var` must be an uppercase environment variable name. `tron_api_key` accepts a plain-text key list separated by newlines, commas, or semicolons and is write-only. The database value takes precedence over the named environment variable when present; the environment variable is the fallback. Responses include read-only `tron_api_key_configured` and `tron_api_key_preview`; the raw API Key is never returned. Protect the database and backups because this template intentionally does not encrypt the stored key. Telegram enable and welcome settings are managed per bot.
+Writable fields: `telegram_api_id`, `telegram_api_hash`, `tron_monitor_enabled`, `tron_api_url`, `tron_api_key_env_var`, `tron_api_key`, and `tron_poll_interval`. Telegram API Hash and TRON API Key are write-only; responses return only configured flags and masked previews. Telegram API ID and Hash use database values first and `TELEGRAM_API_ID`/`TELEGRAM_API_HASH` as fallbacks. Telegram Hash is encrypted with the project Fernet helper; the TRON key remains plain text by explicit project policy. Telegram account login also requires `ENABLE_TELEGRAM_ACCOUNT_NETWORK=1`.
+
+## Telegram Client Accounts
+
+- `GET /api/telegram-accounts/`
+- `GET /api/telegram-accounts/{id}/`
+- `DELETE /api/telegram-accounts/{id}/`
+- `POST /api/telegram-accounts/login/start/`
+- `POST /api/telegram-accounts/login/code/`
+- `POST /api/telegram-accounts/login/password/`
+- `POST /api/telegram-accounts/{id}/check/`
+
+The account collection is read-only: generic `POST`, `PUT`, and `PATCH` return `405`. List queries use standard `page`, `page_size`, and `search`; search covers `phone`, `telegram_id`, `username`, `first_name`, `last_name`, and `label`. Login states are `pending`, `code_sent`, `password_required`, `logged_in`, `session_expired`, and `error`. Temporary `code_sent` and `password_required` accounts can be resumed, but only `logged_in` sessions can be checked. Login requests accept an international phone number and never return API Hash, phone-code hash, password, or StringSession. Real Telegram access is fail-closed until `ENABLE_TELEGRAM_ACCOUNT_NETWORK=1`; tests use fake Telethon clients.
 
 ## Telegram Bots and Buttons
 

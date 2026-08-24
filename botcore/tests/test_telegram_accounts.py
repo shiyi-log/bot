@@ -664,6 +664,56 @@ class TelegramAccountApiTests(TestCase):
         service.sign_in_with_password.assert_not_called()
         service.check_session.assert_not_called()
 
+    def test_list_searches_public_account_fields_and_preserves_pagination(self):
+        matched = self.create_account(
+            label="Primary Search Account",
+            phone="+12025550123",
+            telegram_id=987654321,
+            username="search_handle",
+            first_name="SearchFirst",
+            last_name="SearchLast",
+        )
+        self.create_account(
+            label="Secondary Search Account",
+            phone="+12025550999",
+            telegram_id=123456789,
+            username="other_handle",
+            first_name="OtherFirst",
+            last_name="OtherLast",
+        )
+
+        for search in [
+            "+12025550123",
+            "987654321",
+            "search_handle",
+            "SearchFirst",
+            "SearchLast",
+            "Primary Search",
+        ]:
+            with self.subTest(search=search):
+                response = self.client.get("/api/telegram-accounts/", {
+                    "search": search,
+                    "page_size": 1,
+                })
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data["count"], 1)
+                self.assertEqual(len(response.data["results"]), 1)
+                self.assertEqual(response.data["results"][0]["id"], matched.pk)
+
+        missing = self.client.get("/api/telegram-accounts/", {
+            "search": "does-not-exist",
+        })
+        paginated = self.client.get("/api/telegram-accounts/", {
+            "search": "Search Account",
+            "page_size": 1,
+        })
+
+        self.assertEqual(missing.status_code, 200)
+        self.assertEqual(missing.data["count"], 0)
+        self.assertEqual(paginated.data["count"], 2)
+        self.assertEqual(len(paginated.data["results"]), 1)
+
     def test_start_creates_and_reuses_account_without_exposing_secrets(self):
         result = CodeSentResult(
             phone="+12025550100",

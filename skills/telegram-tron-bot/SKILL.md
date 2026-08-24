@@ -18,6 +18,7 @@ Work from the repository root. Keep Django at the root and Vben under `frontend/
 7. Use `[IP]:8010` for Django and `[IP]:5173` for Vben development so this project does not collide with neighboring workspaces.
 8. Add focused backend tests for bot/runtime changes. Run frontend typecheck and build for UI/API changes.
 9. Record user-visible changes in `CHANGELOG.md` and `docs/version-record.md`.
+10. Keep Telegram client-account login separate from Bot API bot polling. Use Telethon only behind `ENABLE_TELEGRAM_ACCOUNT_NETWORK=1`; encrypt API Hash, phone-code hash, and StringSession with the project encryption helper, and never return or log them.
 
 ## Commands
 
@@ -41,6 +42,8 @@ pnpm --filter @vben/web-antd build
 ## Runtime Boundaries
 
 - Start Telegram polling only with `ENABLE_TELEGRAM_NETWORK=1` and an enabled bot whose configured token environment variable is present.
+- Start personal Telegram account login only with `ENABLE_TELEGRAM_ACCOUNT_NETWORK=1` and valid API ID/API Hash; tests must use fake Telethon clients.
+- Keep account login state resumable across `code_sent` and `password_required`, but do not run session checks against those temporary states.
 - Keep welcome messages and URL inline buttons scoped per bot. Attach buttons only to `/start` and welcome messages.
 - Start TRON polling only with `ENABLE_TRON_NETWORK=1`, a configured API key, and `tron_monitor_enabled=true`.
 - Distinguish fake/local validation from real Telegram or TRON verification in every report.

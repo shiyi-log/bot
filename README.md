@@ -1,6 +1,6 @@
 # Telegram TRON Bot Template
 
-可二次开发的 Telegram 机器人半成品模板。后端使用 Django 5.2 + Django REST Framework，前端基于 Vben Admin 5.7.0，内置欢迎消息、Telegram 用户/群组 ID 采集、TRON 地址只读监控和管理页面。
+可二次开发的 Telegram 机器人半成品模板。后端使用 Django 5.2 + Django REST Framework，前端基于 Vben Admin 5.7.0，内置欢迎消息、Telegram 用户/群组 ID 采集、Telegram 个人账号管理、TRON 地址只读监控和管理页面。
 
 ## 已实现
 
@@ -11,6 +11,7 @@
 - 群组成员仅在群组内发言时采集，用户名和姓名随下一次发言动态更新
 - TRON 地址合法性校验、余额/最近交易轮询、逐地址错误隔离
 - Vben 机器人、按钮、用户、群组、群组成员、TRON 地址和运行设置页面
+- Vben Telegram 账号管理页：手机号、验证码、二级密码三步登录，续登、状态检查、搜索和本地删除
 - 默认关闭 Telegram/TRON 真实网络访问，缺少显式开关或凭据时拒绝运行
 - 项目专属技能：`skills/telegram-tron-bot/`
 
@@ -41,6 +42,8 @@ ENABLE_TELEGRAM_NETWORK=1 uv run python manage.py run_bot
 ENABLE_TELEGRAM_NETWORK=1 uv run python manage.py run_bot --bot-id 2
 ENABLE_TRON_NETWORK=1 uv run python manage.py monitor_tron
 ```
+
+个人 Telegram 账号登录需要另外配置 `TELEGRAM_API_ID`、`TELEGRAM_API_HASH` 或运行设置中的对应值，并显式开启 `ENABLE_TELEGRAM_ACCOUNT_NETWORK=1`。账号会话、验证码哈希和 API Hash 使用 `CONFIG_ENCRYPTION_KEY`（未配置时从 Django `SECRET_KEY` 派生）加密保存；接口只返回公开身份、状态和脱敏预览，不返回会话、验证码或 Hash 原值。测试不会连接 Telegram 网络。
 
 `run_bot` 默认并发运行全部已启用且凭据已配置的机器人，`--bot-id` 可重复指定多个机器人；两个命令均支持 `--once`。TRON API 地址、明文 API Key 和 API Key 环境变量名可在“运行设置”配置；Key 支持换行、逗号或分号分隔并在 401 时轮换，数据库值优先于环境变量。按钮为 URL 类型的 Telegram 内联键盘，仅随 `/start`、首次私聊欢迎和新成员欢迎发送。TRON 功能仅进行只读查询，不包含私钥、签名、转账或支付执行。
 

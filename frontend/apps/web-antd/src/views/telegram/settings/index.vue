@@ -21,10 +21,20 @@ import {
 
 import { getBotSettingsApi, updateBotSettingsApi } from '#/api/telegram';
 
+interface BotSettingsForm extends BotSettings {
+  telegram_api_hash: string;
+}
+
 const loading = ref(false);
 const saving = ref(false);
 const apiKeyDirty = ref(false);
-const form = reactive<BotSettings>({
+const apiIdDirty = ref(false);
+const telegramApiHashDirty = ref(false);
+const form = reactive<BotSettingsForm>({
+  telegram_api_hash_configured: false,
+  telegram_api_hash_preview: '',
+  telegram_api_hash: '',
+  telegram_api_id: '',
   tron_api_key_configured: false,
   tron_api_key_env_var: 'TRONGRID_API_KEY',
   tron_api_key_preview: '',
@@ -41,12 +51,29 @@ const apiKeyInput = computed({
     apiKeyDirty.value = true;
   },
 });
+const telegramApiIdInput = computed({
+  get: () => form.telegram_api_id,
+  set: (value: string) => {
+    form.telegram_api_id = value;
+    apiIdDirty.value = true;
+  },
+});
+const telegramApiHashInput = computed({
+  get: () => form.telegram_api_hash ?? '',
+  set: (value: string) => {
+    form.telegram_api_hash = value;
+    telegramApiHashDirty.value = true;
+  },
+});
 
 async function loadSettings() {
   loading.value = true;
   try {
     Object.assign(form, await getBotSettingsApi());
+    form.telegram_api_hash = '';
     form.tron_api_key = '';
+    apiIdDirty.value = false;
+    telegramApiHashDirty.value = false;
     apiKeyDirty.value = false;
   } finally {
     loading.value = false;
@@ -65,8 +92,17 @@ async function saveSettings() {
     if (apiKeyDirty.value) {
       payload.tron_api_key = form.tron_api_key;
     }
+    if (telegramApiHashDirty.value) {
+      payload.telegram_api_hash = form.telegram_api_hash;
+    }
+    if (apiIdDirty.value) {
+      payload.telegram_api_id = form.telegram_api_id.trim();
+    }
     Object.assign(form, await updateBotSettingsApi(payload));
+    form.telegram_api_hash = '';
     form.tron_api_key = '';
+    apiIdDirty.value = false;
+    telegramApiHashDirty.value = false;
     apiKeyDirty.value = false;
     message.success('设置已保存');
   } finally {
@@ -78,13 +114,59 @@ onMounted(loadSettings);
 </script>
 
 <template>
-  <Page description="配置 TRON 只读监控的运行参数" title="运行设置">
-    <Card :loading="loading" class="max-w-4xl" title="TRON 监控">
-      <Form
-        :label-col="{ span: 5 }"
-        :wrapper-col="{ span: 15 }"
-        @finish="saveSettings"
-      >
+  <Page
+    description="配置 Telegram 账号登录与 TRON 只读监控参数"
+    title="运行设置"
+  >
+    <Form
+      :label-col="{ span: 5 }"
+      :model="form"
+      :wrapper-col="{ span: 15 }"
+      @finish="saveSettings"
+    >
+      <Card :loading="loading" class="mb-4 max-w-4xl" title="Telegram API">
+        <FormItem
+          label="Telegram API ID"
+          name="telegram_api_id"
+          :rules="[
+            {
+              pattern: /^[1-9]\d*$/,
+              message: 'API ID 必须是正整数，留空时使用环境变量',
+            },
+          ]"
+        >
+          <Input
+            v-model:value="telegramApiIdInput"
+            inputmode="numeric"
+            placeholder="留空时使用 TELEGRAM_API_ID"
+          />
+        </FormItem>
+        <FormItem label="Telegram API Hash" name="telegram_api_hash">
+          <Input.Password
+            v-model:value="telegramApiHashInput"
+            :visibility-toggle="false"
+            autocomplete="new-password"
+            placeholder="仅写入；留空且未修改时保留现有配置"
+          />
+          <div class="mt-2 text-sm text-gray-500">
+            当前预览：{{ form.telegram_api_hash_preview || '未配置' }}
+          </div>
+        </FormItem>
+        <FormItem label="API Hash 状态">
+          <Tag
+            :color="form.telegram_api_hash_configured ? 'success' : 'warning'"
+          >
+            {{ form.telegram_api_hash_configured ? '已配置' : '未配置' }}
+          </Tag>
+        </FormItem>
+        <Alert
+          message="数据库中的 Telegram API ID 和 API Hash 优先，未配置时分别回退到 TELEGRAM_API_ID 与 TELEGRAM_API_HASH 环境变量。真实账号登录还要求服务端设置 ENABLE_TELEGRAM_ACCOUNT_NETWORK=1；前端不显示或控制该网络开关。"
+          show-icon
+          type="info"
+        />
+      </Card>
+
+      <Card :loading="loading" class="max-w-4xl" title="TRON 监控">
         <FormItem label="启用 TRON 监控">
           <Switch v-model:checked="form.tron_monitor_enabled" />
         </FormItem>
@@ -96,7 +178,10 @@ onMounted(loadSettings);
             { type: 'url', message: '请输入完整的 http 或 https 地址' },
           ]"
         >
-          <Input v-model:value="form.tron_api_url" placeholder="https://api.trongrid.io" />
+          <Input
+            v-model:value="form.tron_api_url"
+            placeholder="https://api.trongrid.io"
+          />
         </FormItem>
         <FormItem
           label="API Key 环境变量"
@@ -109,7 +194,10 @@ onMounted(loadSettings);
             },
           ]"
         >
-          <Input v-model:value="form.tron_api_key_env_var" placeholder="TRONGRID_API_KEY" />
+          <Input
+            v-model:value="form.tron_api_key_env_var"
+            placeholder="TRONGRID_API_KEY"
+          />
         </FormItem>
         <FormItem label="TRON API Key" name="tron_api_key">
           <Input.TextArea
@@ -150,7 +238,7 @@ onMounted(loadSettings);
             <Button :disabled="saving" @click="loadSettings">重新加载</Button>
           </Space>
         </FormItem>
-      </Form>
-    </Card>
+      </Card>
+    </Form>
   </Page>
 </template>

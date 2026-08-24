@@ -1,6 +1,9 @@
 import { requestClient } from '#/api/request';
 
 export interface BotSettings {
+  telegram_api_hash_configured: boolean;
+  telegram_api_hash_preview: string;
+  telegram_api_id: string;
   tron_api_key_configured: boolean;
   tron_api_key_env_var: string;
   tron_api_key_preview: string;
@@ -11,12 +14,15 @@ export interface BotSettings {
   updated_at: null | string;
 }
 
-export type BotSettingsUpdate = Omit<
-  BotSettings,
-  'tron_api_key_configured' | 'tron_api_key_preview' | 'updated_at'
-> & {
+export interface BotSettingsUpdate {
+  telegram_api_hash?: string;
+  telegram_api_id?: string;
   tron_api_key?: string;
-};
+  tron_api_key_env_var: string;
+  tron_api_url: string;
+  tron_monitor_enabled: boolean;
+  tron_poll_interval: number;
+}
 
 export interface TelegramListQuery {
   bot?: number;
@@ -144,6 +150,66 @@ export interface TelegramBotButtonPayload {
   url: string;
 }
 
+export type TelegramLoginAccountStatus =
+  | 'code_sent'
+  | 'error'
+  | 'logged_in'
+  | 'password_required'
+  | 'pending'
+  | 'session_expired';
+
+export interface TelegramLoginAccount {
+  created_at: string;
+  first_name: string;
+  has_session: boolean;
+  id: number;
+  label: string;
+  last_checked_at: null | string;
+  last_error: string;
+  last_name: string;
+  phone: string;
+  status: TelegramLoginAccountStatus;
+  telegram_id: null | number | string;
+  updated_at: string;
+  username: string;
+}
+
+export type TelegramLoginAccountPage =
+  DrfPaginatedResponse<TelegramLoginAccount>;
+
+export interface TelegramLoginStartPayload {
+  label?: string;
+  phone: string;
+}
+
+export interface TelegramLoginCodePayload {
+  account_id: number;
+  code: string;
+}
+
+export interface TelegramLoginPasswordPayload {
+  account_id: number;
+  password: string;
+}
+
+export interface TelegramLoginStartResult {
+  account: TelegramLoginAccount;
+  account_id: number;
+  next_step: 'code';
+}
+
+export interface TelegramLoginCodeResult {
+  account: TelegramLoginAccount;
+  account_id: number;
+  next_step: 'complete' | 'password';
+}
+
+export interface TelegramLoginPasswordResult {
+  account: TelegramLoginAccount;
+  account_id: number;
+  next_step: 'complete';
+}
+
 export interface TronAddress {
   address: string;
   balance_sun: number;
@@ -215,7 +281,10 @@ export function cloneTelegramBotApi(
   id: number,
   payload: TelegramBotClonePayload = {},
 ) {
-  return requestClient.post<TelegramBotCloneResult>(`/bots/${id}/clone/`, payload);
+  return requestClient.post<TelegramBotCloneResult>(
+    `/bots/${id}/clone/`,
+    payload,
+  );
 }
 
 export function deleteTelegramBotApi(id: number) {
@@ -245,6 +314,48 @@ export function updateTelegramBotButtonApi(
 
 export function deleteTelegramBotButtonApi(id: number) {
   return requestClient.delete(`/bot-buttons/${id}/`);
+}
+
+export function getTelegramLoginAccountsApi(params: TelegramListQuery = {}) {
+  return requestClient.get<TelegramLoginAccountPage>('/telegram-accounts/', {
+    params,
+  });
+}
+
+export function deleteTelegramLoginAccountApi(id: number) {
+  return requestClient.delete(`/telegram-accounts/${id}/`);
+}
+
+export function startTelegramLoginApi(payload: TelegramLoginStartPayload) {
+  return requestClient.post<TelegramLoginStartResult>(
+    '/telegram-accounts/login/start/',
+    payload,
+    { timeout: 180_000 },
+  );
+}
+
+export function submitTelegramLoginCodeApi(payload: TelegramLoginCodePayload) {
+  return requestClient.post<TelegramLoginCodeResult>(
+    '/telegram-accounts/login/code/',
+    payload,
+    { timeout: 180_000 },
+  );
+}
+
+export function submitTelegramLoginPasswordApi(
+  payload: TelegramLoginPasswordPayload,
+) {
+  return requestClient.post<TelegramLoginPasswordResult>(
+    '/telegram-accounts/login/password/',
+    payload,
+    { timeout: 180_000 },
+  );
+}
+
+export function checkTelegramLoginAccountApi(id: number) {
+  return requestClient.post<TelegramLoginAccount>(
+    `/telegram-accounts/${id}/check/`,
+  );
 }
 
 export function getTronAddressesApi(params: TelegramListQuery) {

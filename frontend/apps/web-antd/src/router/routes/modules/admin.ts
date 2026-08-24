@@ -4,6 +4,7 @@ import {
   Grid,
   MessageCircle,
   MessageSquareCode,
+  MonitorSmartphone,
   Settings2,
   Users,
 } from '@vben/icons';
@@ -38,6 +39,12 @@ const routes: RouteRecordRaw[] = [
         path: 'telegram-bots',
         component: () => import('#/views/telegram/bots/index.vue'),
         meta: { icon: MessageSquareCode, title: '机器人管理' },
+      },
+      {
+        name: 'TelegramAccounts',
+        path: 'telegram-accounts',
+        component: () => import('#/views/telegram/accounts/index.vue'),
+        meta: { icon: MonitorSmartphone, title: 'Telegram 账号' },
       },
       {
         name: 'TelegramBotButtons',

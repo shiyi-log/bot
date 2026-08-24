@@ -106,6 +106,14 @@ class TelegramLoginAccountViewSet(
 ):
     queryset = TelegramLoginAccount.objects.all()
     serializer_class = TelegramLoginAccountSerializer
+    search_fields = [
+        "phone",
+        "telegram_id",
+        "username",
+        "first_name",
+        "last_name",
+        "label",
+    ]
 
     @action(detail=False, methods=["post"], url_path="login/start")
     def login_start(self, request):
