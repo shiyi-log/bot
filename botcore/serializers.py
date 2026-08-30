@@ -227,11 +227,11 @@ class TronAddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = TronAddress
         fields = [
-            "id", "address", "label", "enabled", "balance_sun", "last_transaction_id",
+            "id", "address", "label", "enabled", "balance_sun", "usdt_balance_sun", "last_transaction_id",
             "status", "last_error", "last_checked_at", "created_at", "updated_at",
         ]
         read_only_fields = [
-            "balance_sun", "last_transaction_id", "status", "last_error",
+            "balance_sun", "usdt_balance_sun", "last_transaction_id", "status", "last_error",
             "last_checked_at", "created_at", "updated_at",
         ]
 

@@ -25,6 +25,7 @@ import dayjs from 'dayjs';
 
 import {
   createTronAddressApi,
+  checkTronAddressApi,
   deleteTronAddressApi,
   getTronAddressesApi,
   updateTronAddressApi,
@@ -32,6 +33,7 @@ import {
 
 const loading = ref(false);
 const saving = ref(false);
+const checkingId = ref<null | number>(null);
 const modalOpen = ref(false);
 const editingId = ref<null | number>(null);
 const keyword = ref('');
@@ -55,7 +57,8 @@ const columns: TableColumnsType<TronAddress> = [
     width: 360,
   },
   { title: '备注', dataIndex: 'label', key: 'label', width: 180 },
-  { title: '余额', dataIndex: 'balance_sun', key: 'balance_sun', width: 140 },
+  { title: 'TRX 余额', dataIndex: 'balance_sun', key: 'balance_sun', width: 140 },
+  { title: 'USDT 余额', dataIndex: 'usdt_balance_sun', key: 'usdt_balance_sun', width: 140 },
   { title: '监控状态', dataIndex: 'enabled', key: 'enabled', width: 110 },
   { title: '检查结果', dataIndex: 'status', key: 'status', width: 120 },
   {
@@ -131,6 +134,17 @@ async function removeAddress(id: number) {
   message.success('监控地址已删除');
   if (items.value.length === 1 && pagination.page > 1) pagination.page -= 1;
   await loadData();
+}
+
+async function checkAddress(id: number) {
+  checkingId.value = id;
+  try {
+    await checkTronAddressApi(id);
+    message.success('地址检查完成');
+    await loadData();
+  } finally {
+    checkingId.value = null;
+  }
 }
 
 function search() {
@@ -211,6 +225,10 @@ onMounted(loadData);
             {{ (Number(record.balance_sun || 0) / 1_000_000).toLocaleString() }}
             TRX
           </template>
+          <template v-else-if="column.key === 'usdt_balance_sun'">
+            {{ (Number(record.usdt_balance_sun || 0) / 1_000_000).toLocaleString() }}
+            USDT
+          </template>
           <template v-else-if="column.key === 'enabled'">
             <Tag :color="record.enabled ? 'success' : 'default'">
               {{ record.enabled ? '已启用' : '已停用' }}
@@ -231,6 +249,7 @@ onMounted(loadData);
           </template>
           <template v-else-if="column.key === 'actions'">
             <Space>
+              <Button :loading="checkingId === record.id" size="small" type="link" @click="checkAddress(record.id)">检查</Button>
               <Button size="small" type="link" @click="openEdit(record)"
                 >编辑</Button
               >

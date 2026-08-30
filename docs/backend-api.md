@@ -75,8 +75,9 @@ Member responses include `bot` and `bot_name`. Member filters: `bot`, `group`, `
 - `GET /api/tron/addresses/{id}/`
 - `PATCH /api/tron/addresses/{id}/`
 - `DELETE /api/tron/addresses/{id}/`
+- `POST /api/tron/addresses/{id}/check/`
 
-Writable fields are `address`, `label`, and `enabled`. `address` must be a valid TRON Base58Check address. Balance, latest transaction, status, error, and check timestamps are monitor-owned read-only fields.
+Writable fields are `address`, `label`, and `enabled`. `address` must be a valid TRON Base58Check address. Balance, USDT balance, latest transaction, status, error, and check timestamps are monitor-owned read-only fields. `usdt_balance_sun` stores TRC20 USDT in its 6-decimal smallest unit. The `check` action performs one read-only account snapshot and requires `ENABLE_TRON_NETWORK=1` plus a configured key.
 
 Filters: `enabled`, `status`. Search fields: `address`, `label`. Ordering fields: `created_at`, `updated_at`, `last_checked_at`, `balance_sun`.
 

@@ -243,6 +243,7 @@ class TronAddress(models.Model):
     label = models.CharField(max_length=128, blank=True)
     enabled = models.BooleanField(default=True)
     balance_sun = models.BigIntegerField(default=0)
+    usdt_balance_sun = models.BigIntegerField(default=0)
     last_transaction_id = models.CharField(max_length=128, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
     last_error = models.TextField(blank=True)

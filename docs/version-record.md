@@ -1,5 +1,9 @@
 # 版本记录
 
+## v0.4.1 - 2026-08-30
+
+迁入 Shop 地址监控的账户快照逻辑：TRONGrid 账户查询同时解析 TRX 与 USDT（最小单位），保留 API Key 轮换和逐地址错误隔离。新增 `POST /api/tron/addresses/{id}/check/` 单地址只读检查，仍要求 `ENABLE_TRON_NETWORK=1` 与有效凭据；未执行真实链上请求。
+
 ## v0.4.0 - 2026-08-24
 
 完成 Telegram 客户端账号管理。新增 `TelegramLoginAccount`、加密会话与验证码哈希、手机号唯一迁移清理，以及真实 Telethon 三步登录接口。账号资料接口为只读集合，通用 POST/PATCH 返回 405；账号搜索覆盖手机号、Telegram ID、用户名、姓名和备注。

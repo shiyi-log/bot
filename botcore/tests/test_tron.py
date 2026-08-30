@@ -17,7 +17,7 @@ VALID_ADDRESS = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
 
 class FakeProvider:
     def get_snapshot(self, address):
-        return TronSnapshot(balance_sun=1_500_000, latest_transaction_id="tx-123")
+        return TronSnapshot(balance_sun=1_500_000, usdt_balance_sun=2_500_000, latest_transaction_id="tx-123")
 
 
 class FailingProvider:
@@ -36,6 +36,7 @@ class TronMonitorTests(TestCase):
         monitored.refresh_from_db()
         self.assertEqual(result, {"checked": 1, "updated": 1, "errors": 0})
         self.assertEqual(monitored.balance_sun, 1_500_000)
+        self.assertEqual(monitored.usdt_balance_sun, 2_500_000)
         self.assertEqual(monitored.last_transaction_id, "tx-123")
         self.assertEqual(monitored.status, TronAddress.Status.OK)
 
@@ -80,3 +81,11 @@ class TronProviderTests(SimpleTestCase):
             self.assertEqual(provider._get("/v1/accounts/T"), {"ok": True})
 
         self.assertEqual(calls, ["first", "second"])
+
+    def test_snapshot_extracts_usdt_from_trc20(self):
+        provider = TronGridProvider("https://api.trongrid.io", "key")
+        account = {"data": [{"balance": 123, "trc20": [{provider.usdt_contract: "456"}]}]}
+        transactions = {"data": [{"txID": "tx-1"}]}
+        with patch.object(provider, "_get", side_effect=[account, transactions]):
+            snapshot = provider.get_snapshot("T")
+        self.assertEqual(snapshot.usdt_balance_sun, 456)

@@ -1,3 +1,4 @@
+import os
 import re
 import uuid
 from datetime import timedelta
@@ -32,6 +33,7 @@ from .serializers import (
 )
 from .services import telegram_accounts as telegram_account_service
 from .services.telegram_accounts import TelegramAccountError, normalize_phone
+from .services.tron import TronGridProvider, apply_snapshot
 
 
 LOGIN_ATTEMPT_TTL = timedelta(minutes=2)
@@ -586,3 +588,23 @@ class TronAddressViewSet(viewsets.ModelViewSet):
     filterset_fields = ["enabled", "status"]
     search_fields = ["address", "label"]
     ordering_fields = ["created_at", "updated_at", "last_checked_at", "balance_sun"]
+
+    @action(detail=True, methods=["post"])
+    def check(self, request, pk=None):
+        if os.getenv("ENABLE_TRON_NETWORK", "0") != "1":
+            return Response({"detail": "TRON network is disabled; set ENABLE_TRON_NETWORK=1 explicitly."}, status=503)
+        settings = BotSettings.load()
+        api_key = settings.tron_api_key.strip() or os.getenv(settings.tron_api_key_env_var, "").strip()
+        if not api_key:
+            return Response({"detail": f"{settings.tron_api_key_env_var} is required."}, status=503)
+        address = self.get_object()
+        try:
+            snapshot = TronGridProvider(settings.tron_api_url, api_key, os.getenv("TRON_USDT_CONTRACT", "")).get_snapshot(address.address)
+            apply_snapshot(address, snapshot)
+        except Exception as exc:
+            address.status = TronAddress.Status.ERROR
+            address.last_error = str(exc)[:1000]
+            address.last_checked_at = timezone.now()
+            address.save(update_fields=["status", "last_error", "last_checked_at", "updated_at"])
+            return Response({"detail": "TRON address check failed."}, status=502)
+        return Response(self.get_serializer(address).data)

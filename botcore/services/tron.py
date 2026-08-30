@@ -14,6 +14,7 @@ from django.utils import timezone
 from botcore.models import TronAddress
 
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+DEFAULT_USDT_CONTRACT = "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj"
 
 
 def _base58_decode(value: str) -> bytes:
@@ -41,6 +42,7 @@ def is_valid_tron_address(address: str) -> bool:
 @dataclass(frozen=True)
 class TronSnapshot:
     balance_sun: int
+    usdt_balance_sun: int = 0
     latest_transaction_id: str = ""
 
 
@@ -56,9 +58,10 @@ def parse_tron_api_keys(raw: str) -> list[str]:
 class TronGridProvider:
     """Read-only provider for public TRON account and transaction endpoints."""
 
-    def __init__(self, api_url: str, api_key: str):
+    def __init__(self, api_url: str, api_key: str, usdt_contract: str = DEFAULT_USDT_CONTRACT):
         self.api_url = api_url.rstrip("/")
         self.api_keys = parse_tron_api_keys(api_key)
+        self.usdt_contract = usdt_contract.strip() or DEFAULT_USDT_CONTRACT
         self._key_index = 0
 
     def _get(self, path: str, params: dict[str, str] | None = None) -> dict[str, Any]:
@@ -84,14 +87,27 @@ class TronGridProvider:
     def get_snapshot(self, address: str) -> TronSnapshot:
         account = self._get(f"/v1/accounts/{address}")
         account_rows = account.get("data") or []
-        balance = int(account_rows[0].get("balance", 0)) if account_rows else 0
+        account_data = account_rows[0] if account_rows else {}
+        balance = int(account_data.get("balance", 0) or 0)
+        usdt_balance = 0
+        for token in account_data.get("trc20") or []:
+            if not isinstance(token, dict):
+                continue
+            for contract, value in token.items():
+                if str(contract).lower() == self.usdt_contract.lower():
+                    usdt_balance = int(value or 0)
+                    break
         transactions = self._get(
             f"/v1/accounts/{address}/transactions",
             {"limit": "1", "order_by": "block_timestamp,desc", "only_confirmed": "true"},
         )
         rows = transactions.get("data") or []
         transaction_id = str(rows[0].get("txID", "")) if rows else ""
-        return TronSnapshot(balance_sun=balance, latest_transaction_id=transaction_id)
+        return TronSnapshot(
+            balance_sun=balance,
+            usdt_balance_sun=usdt_balance,
+            latest_transaction_id=transaction_id,
+        )
 
 
 def poll_enabled_addresses(provider: TronProvider) -> dict[str, int]:
@@ -107,13 +123,19 @@ def poll_enabled_addresses(provider: TronProvider) -> dict[str, int]:
             monitored.save(update_fields=["status", "last_error", "last_checked_at", "updated_at"])
             result["errors"] += 1
             continue
-        monitored.balance_sun = snapshot.balance_sun
-        monitored.last_transaction_id = snapshot.latest_transaction_id
-        monitored.status = TronAddress.Status.OK
-        monitored.last_error = ""
-        monitored.last_checked_at = timezone.now()
-        monitored.save(update_fields=[
-            "balance_sun", "last_transaction_id", "status", "last_error", "last_checked_at", "updated_at",
-        ])
+        apply_snapshot(monitored, snapshot)
         result["updated"] += 1
     return result
+
+
+def apply_snapshot(monitored: TronAddress, snapshot: TronSnapshot) -> TronAddress:
+    monitored.balance_sun = snapshot.balance_sun
+    monitored.usdt_balance_sun = snapshot.usdt_balance_sun
+    monitored.last_transaction_id = snapshot.latest_transaction_id
+    monitored.status = TronAddress.Status.OK
+    monitored.last_error = ""
+    monitored.last_checked_at = timezone.now()
+    monitored.save(update_fields=[
+        "balance_sun", "usdt_balance_sun", "last_transaction_id", "status", "last_error", "last_checked_at", "updated_at",
+    ])
+    return monitored

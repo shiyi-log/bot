@@ -213,6 +213,7 @@ export interface TelegramLoginPasswordResult {
 export interface TronAddress {
   address: string;
   balance_sun: number;
+  usdt_balance_sun: number;
   created_at: string;
   enabled: boolean;
   id: number;
@@ -374,6 +375,10 @@ export function updateTronAddressApi(id: number, payload: TronAddressPayload) {
     data: payload,
     method: 'PATCH',
   });
+}
+
+export function checkTronAddressApi(id: number) {
+  return requestClient.post<TronAddress>(`/tron/addresses/${id}/check/`);
 }
 
 export function deleteTronAddressApi(id: number) {

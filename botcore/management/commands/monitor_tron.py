@@ -23,7 +23,11 @@ class Command(BaseCommand):
         if not settings.tron_monitor_enabled:
             raise CommandError("TRON monitoring is disabled in settings.")
 
-        provider = TronGridProvider(settings.tron_api_url, api_key)
+        provider = TronGridProvider(
+            settings.tron_api_url,
+            api_key,
+            os.getenv("TRON_USDT_CONTRACT", ""),
+        )
         interval = settings.tron_poll_interval or max(5, int(os.getenv("TRON_POLL_INTERVAL", "30")))
         self.stdout.write("TRON monitoring started.")
         while True:

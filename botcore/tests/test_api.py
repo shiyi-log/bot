@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from botcore.models import BotSettings, TelegramBot, TelegramGroup, TelegramGroupMember, TelegramUser
+from botcore.models import BotSettings, TelegramBot, TelegramGroup, TelegramGroupMember, TelegramUser, TronAddress
 
 VALID_ADDRESS = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
 
@@ -130,6 +130,12 @@ class ApiContractTests(TestCase):
         invalid = self.client.post("/api/tron/addresses/", {"address": "T" + "x" * 33}, format="json")
         self.assertEqual(invalid.status_code, 400)
         self.assertEqual(self.client.delete(f"/api/tron/addresses/{address_id}/").status_code, 204)
+
+    def test_tron_address_check_is_fail_closed_without_network_flag(self):
+        created = TronAddress.objects.create(address=VALID_ADDRESS)
+        with patch.dict(os.environ, {"ENABLE_TRON_NETWORK": "0"}, clear=False):
+            response = self.client.post(f"/api/tron/addresses/{created.id}/check/")
+        self.assertEqual(response.status_code, 503)
 
     def test_group_member_list_can_be_filtered_by_group(self):
         user = TelegramUser.objects.create(telegram_id=100, username="speaker")
