@@ -256,3 +256,35 @@ class TronAddress(models.Model):
 
     def __str__(self) -> str:
         return self.label or self.address
+
+
+class TronBlockCursor(models.Model):
+    network = models.CharField(max_length=32, unique=True, default="mainnet")
+    next_block = models.BigIntegerField(default=0)
+    last_scanned_block = models.BigIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"{self.network}: {self.next_block}"
+
+
+class TronTransferEvent(models.Model):
+    block_number = models.BigIntegerField(db_index=True)
+    block_timestamp = models.DateTimeField(null=True, blank=True)
+    tx_id = models.CharField(max_length=128)
+    event_index = models.PositiveIntegerField(default=0)
+    currency = models.CharField(max_length=16)
+    contract_address = models.CharField(max_length=34, blank=True)
+    from_address = models.CharField(max_length=34)
+    to_address = models.CharField(max_length=34)
+    amount_sun = models.BigIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-block_number", "-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["tx_id", "event_index"], name="unique_tron_transfer_event"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.currency} {self.tx_id}"

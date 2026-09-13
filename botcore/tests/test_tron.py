@@ -3,13 +3,15 @@ import urllib.error
 
 from django.test import SimpleTestCase, TestCase
 
-from botcore.models import TronAddress
+from botcore.models import TronAddress, TronBlockCursor, TronTransferEvent
 from botcore.services.tron import (
     TronGridProvider,
     TronSnapshot,
     is_valid_tron_address,
     parse_tron_api_keys,
     poll_enabled_addresses,
+    parse_block_transfers,
+    scan_blocks,
 )
 
 VALID_ADDRESS = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
@@ -89,3 +91,37 @@ class TronProviderTests(SimpleTestCase):
         with patch.object(provider, "_get", side_effect=[account, transactions]):
             snapshot = provider.get_snapshot("T")
         self.assertEqual(snapshot.usdt_balance_sun, 456)
+
+    def test_parse_block_transfers_handles_trx_and_usdt(self):
+        owner = "41" + "00" * 20
+        recipient = "41" + "00" * 19 + "01"
+        contract = "41ea51342dabbb928ae1e576bd39eff8aaf070a8c6"
+        block = {
+            "block_header": {"raw_data": {"timestamp": 1700000000000}},
+            "transactions": [
+                {"txID": "trx-tx", "raw_data": {"contract": [{"type": "TransferContract", "parameter": {"value": {"owner_address": owner, "to_address": recipient, "amount": 9}}}]}},
+                {"txID": "usdt-tx", "raw_data": {"contract": [{"type": "TriggerSmartContract", "parameter": {"value": {"owner_address": owner, "contract_address": contract, "data": "a9059cbb" + ("00" * 12) + recipient[2:] + ("00" * 31) + "07"}}}]}},
+            ],
+        }
+        events = parse_block_transfers(block, 123)
+        self.assertEqual([event["currency"] for event in events], ["TRX", "USDT"])
+        self.assertEqual(events[1]["amount_sun"], 7)
+
+
+class TronBlockScannerTests(TestCase):
+    def test_scan_blocks_advances_cursor_and_deduplicates_matching_events(self):
+        monitored = TronAddress.objects.create(address=VALID_ADDRESS)
+
+        class FakeBlockProvider:
+            def get_latest_block_number(self):
+                return 105
+
+            def get_block(self, number):
+                return {"transactions": []}
+
+        cursor = TronBlockCursor.objects.create(network="mainnet", next_block=100)
+        result = scan_blocks(FakeBlockProvider(), confirmations=2, batch_size=10)
+        cursor.refresh_from_db()
+        self.assertEqual(result["scanned"], 4)
+        self.assertEqual(cursor.next_block, 104)
+        self.assertEqual(TronTransferEvent.objects.count(), 0)

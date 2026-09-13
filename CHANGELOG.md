@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0 - 2026-09-13
+
+- 新增独立 TRON 扫块器 `scan_tron_blocks`，维护确认区块游标并按批次解析 TRX/TRC20 USDT 转账。
+- 新增 `TronBlockCursor` 和幂等 `TronTransferEvent`，仅保存命中启用监控地址的只读事件，不执行支付或转账。
+
 ## 0.4.1 - 2026-08-30
 
 - 地址监控接入 Shop 风格 TRONGrid 账户快照，增加 TRC20 USDT 余额采集。

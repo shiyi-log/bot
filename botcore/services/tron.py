@@ -6,12 +6,13 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from django.utils import timezone
 
-from botcore.models import TronAddress
+from botcore.models import TronAddress, TronBlockCursor, TronTransferEvent
 
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 DEFAULT_USDT_CONTRACT = "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj"
@@ -108,6 +109,100 @@ class TronGridProvider:
             usdt_balance_sun=usdt_balance,
             latest_transaction_id=transaction_id,
         )
+
+    def get_latest_block_number(self) -> int:
+        payload = self._post("/wallet/getnowblock", {})
+        return int(((payload.get("block_header") or {}).get("raw_data") or {}).get("number", 0))
+
+    def get_block(self, number: int) -> dict[str, Any]:
+        return self._post("/wallet/getblockbynum", {"num": number})
+
+    def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        url = f"{self.api_url}{path}"
+        keys = self.api_keys or [""]
+        start = self._key_index % len(keys)
+        self._key_index += 1
+        for offset in range(len(keys)):
+            key = keys[(start + offset) % len(keys)]
+            request = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode(),
+                headers={"Content-Type": "application/json", **({"TRON-PRO-API-KEY": key} if key else {})},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=20) as response:
+                    return json.load(response)
+            except urllib.error.HTTPError as exc:
+                if exc.code == 401 and offset < len(keys) - 1:
+                    continue
+                raise
+        raise RuntimeError("TRON API request failed")
+
+
+def _hex_to_address(value: str) -> str:
+    raw = bytes.fromhex(value.removeprefix("0x"))
+    if len(raw) == 20:
+        raw = b"\x41" + raw
+    if len(raw) != 21 or raw[0] != 0x41:
+        return ""
+    payload = raw
+    checksum = hashlib.sha256(hashlib.sha256(payload).digest()).digest()[:4]
+    number = int.from_bytes(payload + checksum, "big")
+    output = ""
+    while number:
+        number, remainder = divmod(number, 58)
+        output = BASE58_ALPHABET[remainder] + output
+    return "1" * (len(payload + checksum) - len((payload + checksum).lstrip(b"\0"))) + output
+
+
+def parse_block_transfers(block: dict[str, Any], block_number: int, usdt_contract: str = DEFAULT_USDT_CONTRACT) -> list[dict[str, Any]]:
+    timestamp = ((block.get("block_header") or {}).get("raw_data") or {}).get("timestamp")
+    block_time = datetime.fromtimestamp(int(timestamp) / 1000, tz=timezone.get_current_timezone()) if timestamp else None
+    events = []
+    for tx in block.get("transactions") or []:
+        tx_id = str(tx.get("txID", ""))
+        for index, contract in enumerate(((tx.get("raw_data") or {}).get("contract") or [])):
+            value = contract.get("parameter", {}).get("value", {})
+            if contract.get("type") == "TransferContract":
+                from_address = _hex_to_address(str(value.get("owner_address", "")))
+                to_address = _hex_to_address(str(value.get("to_address", "")))
+                if from_address and to_address:
+                    events.append({"block_number": block_number, "block_timestamp": block_time, "tx_id": tx_id, "event_index": index, "currency": "TRX", "contract_address": "", "from_address": from_address, "to_address": to_address, "amount_sun": int(value.get("amount", 0) or 0)})
+            elif contract.get("type") == "TriggerSmartContract":
+                data = str(value.get("data", ""))
+                contract_address = _hex_to_address(str(value.get("contract_address", "")))
+                if data.lower().startswith("a9059cbb") and len(data) >= 136 and contract_address.lower() == usdt_contract.lower():
+                    to_address = _hex_to_address(data[32:72])
+                    amount = int(data[72:136], 16)
+                    from_address = _hex_to_address(str(value.get("owner_address", "")))
+                    if from_address and to_address:
+                        events.append({"block_number": block_number, "block_timestamp": block_time, "tx_id": tx_id, "event_index": index, "currency": "USDT", "contract_address": contract_address, "from_address": from_address, "to_address": to_address, "amount_sun": amount})
+    return events
+
+
+def scan_blocks(provider: TronGridProvider, *, confirmations: int = 20, batch_size: int = 20) -> dict[str, int]:
+    latest = provider.get_latest_block_number()
+    target = latest - max(confirmations, 0)
+    cursor, _ = TronBlockCursor.objects.get_or_create(network="mainnet")
+    if cursor.next_block <= 0:
+        cursor.next_block = max(0, target)
+    monitored = set(TronAddress.objects.filter(enabled=True).values_list("address", flat=True))
+    result = {"latest": latest, "scanned": 0, "events": 0, "matched": 0}
+    while cursor.next_block <= target and result["scanned"] < max(batch_size, 1):
+        number = cursor.next_block
+        events = parse_block_transfers(provider.get_block(number), number)
+        for event in events:
+            result["events"] += 1
+            if event["from_address"] not in monitored and event["to_address"] not in monitored:
+                continue
+            TronTransferEvent.objects.get_or_create(tx_id=event["tx_id"], event_index=event["event_index"], defaults=event)
+            result["matched"] += 1
+        cursor.last_scanned_block = number
+        cursor.next_block = number + 1
+        cursor.save(update_fields=["last_scanned_block", "next_block", "updated_at"])
+        result["scanned"] += 1
+    return result
 
 
 def poll_enabled_addresses(provider: TronProvider) -> dict[str, int]:

@@ -1,5 +1,9 @@
 # 版本记录
 
+## v0.5.0 - 2026-09-13
+
+新增独立 TRON 扫块器。扫块器使用 TRONGrid `getnowblock`/`getblockbynum` 读取确认区块，维护数据库游标，解析 TRX `TransferContract` 与 USDT `transfer` 调用，并按交易 ID与合约索引幂等保存命中启用监控地址的事件。支持 `--once`、`--confirmations`、`--batch-size`，网络开关关闭时 fail-closed；未执行真实链上请求。
+
 ## v0.4.1 - 2026-08-30
 
 迁入 Shop 地址监控的账户快照逻辑：TRONGrid 账户查询同时解析 TRX 与 USDT（最小单位），保留 API Key 轮换和逐地址错误隔离。新增 `POST /api/tron/addresses/{id}/check/` 单地址只读检查，仍要求 `ENABLE_TRON_NETWORK=1` 与有效凭据；未执行真实链上请求。

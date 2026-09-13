@@ -19,6 +19,11 @@ class FailClosedCommandTests(TestCase):
         with self.assertRaisesMessage(CommandError, "TRON network is disabled"):
             call_command("monitor_tron", "--once", stdout=StringIO())
 
+    @patch.dict("os.environ", {"ENABLE_TRON_NETWORK": "0"}, clear=False)
+    def test_scan_tron_blocks_rejects_network_by_default(self):
+        with self.assertRaisesMessage(CommandError, "TRON network is disabled"):
+            call_command("scan_tron_blocks", "--once", stdout=StringIO())
+
     @patch("botcore.management.commands.run_bot.TelegramBotAPITransport")
     @patch.dict("os.environ", {
         "ENABLE_TELEGRAM_NETWORK": "1",

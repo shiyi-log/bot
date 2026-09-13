@@ -20,6 +20,7 @@ from .models import (
     TelegramLoginAccount,
     TelegramUser,
     TronAddress,
+    TronTransferEvent,
 )
 from .serializers import (
     BotSettingsSerializer,
@@ -30,6 +31,7 @@ from .serializers import (
     TelegramLoginAccountSerializer,
     TelegramUserSerializer,
     TronAddressSerializer,
+    TronTransferEventSerializer,
 )
 from .services import telegram_accounts as telegram_account_service
 from .services.telegram_accounts import TelegramAccountError, normalize_phone
@@ -608,3 +610,11 @@ class TronAddressViewSet(viewsets.ModelViewSet):
             address.save(update_fields=["status", "last_error", "last_checked_at", "updated_at"])
             return Response({"detail": "TRON address check failed."}, status=502)
         return Response(self.get_serializer(address).data)
+
+
+class TronTransferEventViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = TronTransferEvent.objects.all()
+    serializer_class = TronTransferEventSerializer
+    filterset_fields = ["currency", "block_number", "from_address", "to_address"]
+    search_fields = ["tx_id", "from_address", "to_address", "contract_address"]
+    ordering_fields = ["block_number", "block_timestamp", "created_at"]

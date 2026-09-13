@@ -12,6 +12,7 @@ from .models import (
     TelegramLoginAccount,
     TelegramUser,
     TronAddress,
+    TronTransferEvent,
 )
 from .services.tron import is_valid_tron_address
 
@@ -240,3 +241,13 @@ class TronAddressSerializer(serializers.ModelSerializer):
         if not is_valid_tron_address(value):
             raise serializers.ValidationError("Invalid TRON Base58Check address.")
         return value
+
+
+class TronTransferEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TronTransferEvent
+        fields = [
+            "id", "block_number", "block_timestamp", "tx_id", "event_index", "currency",
+            "contract_address", "from_address", "to_address", "amount_sun", "created_at",
+        ]
+        read_only_fields = fields

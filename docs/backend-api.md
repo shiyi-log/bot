@@ -83,6 +83,10 @@ Filters: `enabled`, `status`. Search fields: `address`, `label`. Ordering fields
 
 ## Runtime Boundaries
 
+`GET /api/tron/events/` provides a read-only paginated view of scanner events. It supports `currency`, `block_number`, `from_address`, `to_address`, and search by transaction/address.
+
 `python manage.py run_bot` requires `ENABLE_TELEGRAM_NETWORK=1` and at least one enabled bot whose configured `token_env_var` exists in the environment. It concurrently runs all eligible bots. Use repeatable `--bot-id ID` to select enabled bots. It persists the public user/group identity from updates, tracks first interaction per bot, records speaking membership per bot, supports `/start`, `/id`, and `/chatid`, welcomes a first private interaction, and welcomes new group members.
 
 `python manage.py monitor_tron` requires `ENABLE_TRON_NETWORK=1`, a configured database Key or the environment variable named by `tron_api_key_env_var`, and `tron_monitor_enabled=true`. It uses `tron_api_url`, performs read-only polling, rotates multiple keys, and retries the next key on HTTP 401. Both commands support `--once`. Without the explicit network flag they stop with an error before making a request.
+
+`python manage.py scan_tron_blocks` is an independent read-only scanner. It requires `ENABLE_TRON_NETWORK=1` and the same API key configuration, keeps a `TronBlockCursor`, scans confirmed blocks (`--confirmations`, default 20), and stores only TRX/TRC20 USDT transfer events matching enabled monitored addresses in `TronTransferEvent`. It is idempotent by `tx_id` and `event_index`, supports bounded `--batch-size`, and performs no signing, transfer, payment, or notification action.

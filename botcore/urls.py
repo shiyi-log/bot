@@ -11,6 +11,7 @@ from .views import (
     TelegramLoginAccountViewSet,
     TelegramUserViewSet,
     TronAddressViewSet,
+    TronTransferEventViewSet,
 )
 
 router = DefaultRouter()
@@ -21,6 +22,7 @@ router.register("groups", TelegramGroupViewSet, basename="telegram-group")
 router.register("members", TelegramGroupMemberViewSet, basename="telegram-group-member")
 router.register("telegram-accounts", TelegramLoginAccountViewSet, basename="telegram-login-account")
 router.register("tron/addresses", TronAddressViewSet, basename="tron-address")
+router.register("tron/events", TronTransferEventViewSet, basename="tron-transfer-event")
 
 urlpatterns = [
     path("dashboard/summary/", DashboardSummaryView.as_view(), name="dashboard-summary"),
