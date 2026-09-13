@@ -18,6 +18,14 @@
 
 ## 本地启动
 
+一键启动（自动迁移并同时启动后端和前端）：
+
+```bash
+./scripts/start-dev.sh
+```
+
+默认访问 `http://127.0.0.1:5173/`，后端为 `http://127.0.0.1:8010/`。脚本不会终止已有进程；端口被占用时会直接提示并退出。可通过 `BACKEND_PORT`、`FRONTEND_PORT`、`BACKEND_HOST` 和 `FRONTEND_HOST` 覆盖默认值。
+
 ```bash
 uv sync
 uv run python manage.py migrate

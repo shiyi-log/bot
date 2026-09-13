@@ -1,5 +1,11 @@
 # 版本记录
 
+## v0.5.1 - 2026-09-13
+
+新增 `scripts/start-dev.sh` 一键开发启动入口。脚本自动执行 Django 数据库迁移，同时启动后端和 Vben 前端；默认地址为 `127.0.0.1:8010` 与 `127.0.0.1:5173`。启动前检查端口占用，避免终止已有服务；支持 `BACKEND_HOST`、`BACKEND_PORT`、`FRONTEND_HOST`、`FRONTEND_PORT` 覆盖。Ctrl-C 仅停止本次脚本启动的进程。
+
+验证：完成 `bash -n scripts/start-dev.sh` 静态语法检查，并使用临时端口执行启动冒烟测试。
+
 ## v0.5.0 - 2026-09-13
 
 新增独立 TRON 扫块器。扫块器使用 TRONGrid `getnowblock`/`getblockbynum` 读取确认区块，维护数据库游标，解析 TRX `TransferContract` 与 USDT `transfer` 调用，并按交易 ID与合约索引幂等保存命中启用监控地址的事件。支持 `--once`、`--confirmations`、`--batch-size`，网络开关关闭时 fail-closed；未执行真实链上请求。
