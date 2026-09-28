@@ -1,5 +1,13 @@
 # 版本记录
 
+## 2026-09-29 — 公开发布
+
+仓库已切换为公开可见，默认分支设为 `main`，仓库描述和根目录 MIT License 已补齐。公开仓库的 GitHub Actions 使用 `ubuntu-latest`，并移除原先登记的长期自托管 Runner，避免外部 Pull Request 执行在受信任主机上。
+
+公开前使用 `git-filter-repo` 从 `main`、`master`、`anniu` 可达历史移除 `bot_manager.log` 和 `django_server.log`；全历史 Telegram Bot Token、常见私钥/平台密钥模式扫描为 0 命中，`git fsck --full --no-reflogs --unreachable` 无不可达对象。清理前 bundle 备份保存在本机 `/Users/a399/Desktop/data/bot-pre-public-20260929.bundle`，不属于仓库内容。
+
+GitHub 托管 CI 的一次触发曾因账号支付状态被 GitHub 拒绝启动；代码公开不依赖该次运行结论，需在账户计费恢复后重新检查工作流。
+
 ## 未发布 — 离线 CI
 
 新增 `.github/workflows/ci.yml`，将现有 Django `botcore.tests`、系统检查、迁移漂移检查与 Vben 类型检查、构建分为两个独立的 GitHub Actions 任务，并使用 GitHub 托管的 `ubuntu-latest` Runner。Python、Node 和 pnpm 版本明确指定，依赖按锁文件安装；工作流权限只读，Telegram/TRON 业务网络开关显式关闭，不要求密钥，也不部署服务。

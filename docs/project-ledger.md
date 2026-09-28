@@ -78,3 +78,12 @@
 - 验证 / Verification: 待创建可恢复 bundle 备份后，重写 `main`、`master`、`anniu` 的历史并移除两份日志；重写后扫描所有分支和对象中的 Telegram Token 模式，再强制推送。
 - 限制 / Limits: 不能把当前仓库声明为已安全公开，直到历史重写、远端 refs 更新和 GitHub 可见性核验全部完成。
 - 下一步 / Next: 备份、历史清理、全历史扫描、推送并切换默认分支/公开可见性。
+
+## 2026-09-29 — 公开发布完成
+
+- 状态 / Status: 完成（公开仓库）；GitHub 仓库 `shiyi-log/bot` 已为 public，默认分支为 `main`，仓库许可证识别为 MIT。
+- 读取 / Read: GitHub API 核对 public 可见性、`main` 默认分支、根目录许可证、Actions Runner 数量和 Secret Scanning 设置；远端分支 `main`、`master`、`anniu` 已全部接收重写后的提交。
+- 修改 / Write: 使用 `git-filter-repo --invert-paths --path bot_manager.log --path django_server.log` 重写并强制推送三个远端分支；删除仓库登记的两个自托管 Runner；工作流改为 `ubuntu-latest`；补充根目录 `LICENSE`、README 开源与安全说明、版本记录。
+- 验证 / Verification: 清理前 bundle `/Users/a399/Desktop/data/bot-pre-public-20260929.bundle` 可恢复；重写后 `git rev-list --all --objects` 不含两份日志，所有可达提交 Telegram Token/常见私钥与平台密钥扫描为 0 命中，`git fsck --full --no-reflogs --unreachable` 无不可达对象；GitHub API 显示 Runner 数量为 0。公开切换后的 CI run `36450037749` 未启动，GitHub 返回账户支付失败或 spending limit 限制，非代码失败。
+- 限制 / Limits: 公开仓库的 GitHub Actions 尚未获得一次成功的 `ubuntu-latest` 运行证据；账户计费恢复后应重新触发 `CI` workflow。历史中曾存在的 Telegram Token 已按用户授权从 Git 历史移除，但相关 BotFather Token 仍应确认已撤销/轮换。
+- 下一步 / Next: 在 GitHub Actions 计费状态恢复后重新运行 CI，并继续保持所有真实 Telegram/TRON 网络开关默认关闭。
