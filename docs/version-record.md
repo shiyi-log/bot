@@ -10,7 +10,11 @@ TRON 地址轮询新增账户资源快照：首次检查只建立 Energy/Bandwid
 
 新增 `.github/workflows/self-hosted-acceptance.yml`：只允许仓库 `main` 手动触发，使用带 `repo-bot-acceptance` 标签的一次性 macOS ARM64 自托管 Runner，在单个作业中执行全部后端与前端离线检查。普通 CI 与公开 Pull Request 继续使用 GitHub 托管 `ubuntu-latest`。
 
-本地验证：Django 102 项测试、系统检查、迁移漂移检查、Vben typecheck 与 production build 均通过；真实 TRONGrid、Telegram 与生产环境未调用。自托管 GitHub Actions run ID 在工作流实际完成后补记。
+本地验证：Django 104 项测试、系统检查、迁移漂移检查、从 `0011` 到 `0012` 的隔离升级、Vben typecheck 与 production build 均通过；真实 TRONGrid、Telegram 与生产环境未调用。
+
+GitHub 托管 CI run `36468831581` 在提交 `ccc8f57` 上通过。一次性 macOS ARM64 自托管验收 run `36468991874` 同样在 `ccc8f57` 上通过，后端测试、系统检查、迁移漂移、冻结前端依赖安装、typecheck、production build 和所有 post-step 均成功，耗时 2 分 54 秒；作业后 Runner 自动删除凭据并注销，仓库 Runner 数量回到 0。
+
+此前 run `36467966131` 的全部业务检查已成功，但 `setup-uv` 缓存上传 post-step 长时间不退出，因此主动取消。提交 `ccc8f57` 将 ephemeral 工作流的 uv 缓存关闭后重跑成功；该取消记录不作为验收通过证据。
 
 ## 2026-09-29 — README 技术栈说明
 
