@@ -1,5 +1,10 @@
 # Changelog
 
+## 未发布
+
+- 新增 GitHub Actions 双任务离线 CI：在 `main` 推送、拉取请求和手动触发时，使用带 `repo-bot` 标签的 Linux x64 自托管 Runner 检查 Django 测试/迁移与 Vben 类型/构建。
+- CI 使用锁定依赖、只读仓库权限和明确关闭的 Telegram/TRON 网络开关；不加载业务密钥，也不执行真实外部服务请求。
+
 ## 0.5.1 - 2026-09-13
 
 - 新增 `scripts/start-dev.sh` 一键开发启动入口，自动执行数据库迁移并同时启动 Django 后端与 Vben 前端。
