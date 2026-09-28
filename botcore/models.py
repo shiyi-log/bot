@@ -244,6 +244,8 @@ class TronAddress(models.Model):
     enabled = models.BooleanField(default=True)
     balance_sun = models.BigIntegerField(default=0)
     usdt_balance_sun = models.BigIntegerField(default=0)
+    resource_snapshot = models.JSONField(default=dict, blank=True)
+    permission_snapshot = models.JSONField(default=dict, blank=True)
     last_transaction_id = models.CharField(max_length=128, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
     last_error = models.TextField(blank=True)
@@ -288,3 +290,33 @@ class TronTransferEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.currency} {self.tx_id}"
+
+
+class TronAlert(models.Model):
+    class Type(models.TextChoices):
+        RESOURCE_CHANGED = "resource_changed", "Resource changed"
+        AUTHORIZATION_CHANGED = "authorization_changed", "Authorization changed"
+        PERMISSION_CHANGED = "permission_changed", "Permission changed"
+
+    address = models.ForeignKey(TronAddress, on_delete=models.CASCADE, related_name="alerts")
+    alert_type = models.CharField(max_length=32, choices=Type.choices, db_index=True)
+    block_number = models.BigIntegerField(null=True, blank=True, db_index=True)
+    block_timestamp = models.DateTimeField(null=True, blank=True)
+    tx_id = models.CharField(max_length=128, blank=True, db_index=True)
+    event_index = models.PositiveIntegerField(default=0)
+    previous_value = models.JSONField(default=dict, blank=True)
+    current_value = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["address", "alert_type", "tx_id", "event_index"],
+                condition=~models.Q(tx_id=""),
+                name="unique_tron_chain_alert",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_alert_type_display()}: {self.address}"

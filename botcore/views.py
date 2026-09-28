@@ -20,6 +20,7 @@ from .models import (
     TelegramLoginAccount,
     TelegramUser,
     TronAddress,
+    TronAlert,
     TronTransferEvent,
 )
 from .serializers import (
@@ -31,6 +32,7 @@ from .serializers import (
     TelegramLoginAccountSerializer,
     TelegramUserSerializer,
     TronAddressSerializer,
+    TronAlertSerializer,
     TronTransferEventSerializer,
 )
 from .services import telegram_accounts as telegram_account_service
@@ -618,3 +620,11 @@ class TronTransferEventViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ["currency", "block_number", "from_address", "to_address"]
     search_fields = ["tx_id", "from_address", "to_address", "contract_address"]
     ordering_fields = ["block_number", "block_timestamp", "created_at"]
+
+
+class TronAlertViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = TronAlert.objects.select_related("address")
+    serializer_class = TronAlertSerializer
+    filterset_fields = ["alert_type", "address", "block_number"]
+    search_fields = ["tx_id", "address__address", "address__label"]
+    ordering_fields = ["created_at", "block_number"]

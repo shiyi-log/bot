@@ -231,6 +231,33 @@ export interface TronAddressPayload {
   label: string;
 }
 
+export type TronAlertType =
+  | 'authorization_changed'
+  | 'permission_changed'
+  | 'resource_changed';
+
+export interface TronAlert {
+  address: number;
+  address_label: string;
+  address_value: string;
+  alert_type: TronAlertType;
+  block_number: null | number;
+  block_timestamp: null | string;
+  created_at: string;
+  current_value: Record<string, unknown>;
+  event_index: number;
+  id: number;
+  previous_value: Record<string, unknown>;
+  tx_id: string;
+}
+
+export interface TronAlertListQuery extends TelegramListQuery {
+  address?: number;
+  alert_type?: TronAlertType;
+  block_number?: number;
+  ordering?: string;
+}
+
 export function getBotSettingsApi() {
   return requestClient.get<BotSettings>('/settings/');
 }
@@ -383,4 +410,10 @@ export function checkTronAddressApi(id: number) {
 
 export function deleteTronAddressApi(id: number) {
   return requestClient.delete(`/tron/addresses/${id}/`);
+}
+
+export function getTronAlertsApi(params: TronAlertListQuery = {}) {
+  return requestClient.get<DrfPaginatedResponse<TronAlert>>('/tron/alerts/', {
+    params,
+  });
 }

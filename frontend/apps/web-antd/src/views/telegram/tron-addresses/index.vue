@@ -1,7 +1,12 @@
 <script lang="ts" setup>
 import type { TableColumnsType, TablePaginationConfig } from 'ant-design-vue';
 
-import type { TronAddress, TronAddressPayload } from '#/api/telegram';
+import type {
+  TronAddress,
+  TronAddressPayload,
+  TronAlert,
+  TronAlertType,
+} from '#/api/telegram';
 
 import { computed, onMounted, reactive, ref } from 'vue';
 
@@ -15,6 +20,7 @@ import {
   Input,
   Modal,
   Popconfirm,
+  Select,
   Space,
   Switch,
   Table,
@@ -28,6 +34,7 @@ import {
   checkTronAddressApi,
   deleteTronAddressApi,
   getTronAddressesApi,
+  getTronAlertsApi,
   updateTronAddressApi,
 } from '#/api/telegram';
 
@@ -39,6 +46,11 @@ const editingId = ref<null | number>(null);
 const keyword = ref('');
 const items = ref<TronAddress[]>([]);
 const pagination = reactive({ page: 1, pageSize: 20, total: 0 });
+const alertLoading = ref(false);
+const alertKeyword = ref('');
+const alertType = ref<TronAlertType | undefined>();
+const alerts = ref<TronAlert[]>([]);
+const alertPagination = reactive({ page: 1, pageSize: 20, total: 0 });
 const form = reactive<TronAddressPayload>({
   address: '',
   enabled: true,
@@ -70,12 +82,32 @@ const columns: TableColumnsType<TronAddress> = [
   { title: '错误信息', dataIndex: 'last_error', key: 'last_error', width: 240 },
   { title: '操作', key: 'actions', fixed: 'right', width: 150 },
 ];
+const alertColumns: TableColumnsType<TronAlert> = [
+  { title: '提醒类型', dataIndex: 'alert_type', key: 'alert_type', width: 140 },
+  { title: '监控地址', dataIndex: 'address_value', key: 'address_value', width: 350 },
+  { title: '备注', dataIndex: 'address_label', key: 'address_label', width: 160 },
+  { title: '区块', dataIndex: 'block_number', key: 'block_number', width: 120 },
+  { title: '区块时间', dataIndex: 'block_timestamp', key: 'block_timestamp', width: 180 },
+  { title: '交易 ID', dataIndex: 'tx_id', key: 'tx_id', width: 260 },
+  { title: '变更前', dataIndex: 'previous_value', key: 'previous_value', width: 300 },
+  { title: '变更后', dataIndex: 'current_value', key: 'current_value', width: 300 },
+  { title: '发现时间', dataIndex: 'created_at', key: 'created_at', width: 180 },
+];
 
 const statusMeta = {
   error: { color: 'error', text: '异常' },
   ok: { color: 'success', text: '正常' },
   pending: { color: 'processing', text: '待检查' },
 } as const;
+const alertTypeMeta = {
+  authorization_changed: { color: 'warning', text: '授权变动' },
+  permission_changed: { color: 'error', text: '权限变动' },
+  resource_changed: { color: 'processing', text: '资源变动' },
+} as const;
+const alertTypeOptions = Object.entries(alertTypeMeta).map(([value, meta]) => ({
+  label: meta.text,
+  value,
+}));
 
 async function loadData() {
   loading.value = true;
@@ -89,6 +121,23 @@ async function loadData() {
     pagination.total = result.count;
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadAlerts() {
+  alertLoading.value = true;
+  try {
+    const result = await getTronAlertsApi({
+      alert_type: alertType.value,
+      ordering: '-created_at',
+      page: alertPagination.page,
+      page_size: alertPagination.pageSize,
+      search: alertKeyword.value.trim(),
+    });
+    alerts.value = result.results;
+    alertPagination.total = result.count;
+  } finally {
+    alertLoading.value = false;
   }
 }
 
@@ -164,6 +213,24 @@ function handleTableChange(next: TablePaginationConfig) {
   loadData();
 }
 
+function searchAlerts() {
+  alertPagination.page = 1;
+  loadAlerts();
+}
+
+function resetAlertSearch() {
+  alertKeyword.value = '';
+  alertType.value = undefined;
+  alertPagination.page = 1;
+  loadAlerts();
+}
+
+function handleAlertTableChange(next: TablePaginationConfig) {
+  alertPagination.page = next.current || 1;
+  alertPagination.pageSize = next.pageSize || 20;
+  loadAlerts();
+}
+
 function formatDate(value: null | string) {
   return value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-';
 }
@@ -177,12 +244,36 @@ function getStatusMeta(status: string) {
   );
 }
 
-onMounted(loadData);
+function getAlertTypeMeta(type: string) {
+  return (
+    alertTypeMeta[type as keyof typeof alertTypeMeta] || {
+      color: 'default',
+      text: type,
+    }
+  );
+}
+
+function formatSnapshot(value: Record<string, unknown>) {
+  const entries = Object.entries(value || {});
+  if (!entries.length) return '-';
+  return entries
+    .map(([key, item]) => {
+      const formatted =
+        item && typeof item === 'object' ? JSON.stringify(item) : String(item);
+      return `${key}: ${formatted}`;
+    })
+    .join('\n');
+}
+
+onMounted(() => {
+  loadData();
+  loadAlerts();
+});
 </script>
 
 <template>
   <Page
-    description="维护需要轮询余额和交易状态的 TRON 地址"
+    description="维护只读监控地址，并查看资源、授权和账户权限变动"
     title="TRON 地址监控"
   >
     <Card>
@@ -265,6 +356,78 @@ onMounted(loadData);
       </Table>
     </Card>
 
+    <Card class="mt-4">
+      <template #title>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <span>变动提醒</span>
+          <Space wrap>
+            <Select
+              v-model:value="alertType"
+              allow-clear
+              :options="alertTypeOptions"
+              placeholder="全部提醒类型"
+              style="width: 160px"
+              @change="searchAlerts"
+            />
+            <Input.Search
+              v-model:value="alertKeyword"
+              allow-clear
+              enter-button="搜索"
+              placeholder="搜索地址、备注或交易 ID"
+              style="width: 320px"
+              @search="searchAlerts"
+            />
+            <Button @click="resetAlertSearch">重置</Button>
+            <Button @click="loadAlerts">刷新</Button>
+          </Space>
+        </div>
+      </template>
+      <Table
+        :columns="alertColumns"
+        :data-source="alerts"
+        :loading="alertLoading"
+        :pagination="{
+          current: alertPagination.page,
+          pageSize: alertPagination.pageSize,
+          total: alertPagination.total,
+          showSizeChanger: true,
+          showTotal: (total: number) => `共 ${total} 条`,
+        }"
+        row-key="id"
+        :scroll="{ x: 1990 }"
+        @change="handleAlertTableChange"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'alert_type'">
+            <Tag :color="getAlertTypeMeta(record.alert_type).color">
+              {{ getAlertTypeMeta(record.alert_type).text }}
+            </Tag>
+          </template>
+          <template v-else-if="column.key === 'address_value'">
+            <span class="font-mono">{{ record.address_value }}</span>
+          </template>
+          <template v-else-if="column.key === 'block_number'">
+            {{ record.block_number ?? '-' }}
+          </template>
+          <template v-else-if="column.key === 'block_timestamp'">
+            {{ formatDate(record.block_timestamp) }}
+          </template>
+          <template v-else-if="column.key === 'tx_id'">
+            <span class="break-all font-mono">{{ record.tx_id || '-' }}</span>
+          </template>
+          <template v-else-if="column.key === 'previous_value'">
+            <pre class="snapshot-cell">{{ formatSnapshot(record.previous_value) }}</pre>
+          </template>
+          <template v-else-if="column.key === 'current_value'">
+            <pre class="snapshot-cell">{{ formatSnapshot(record.current_value) }}</pre>
+          </template>
+          <template v-else-if="column.key === 'created_at'">
+            {{ formatDate(record.created_at) }}
+          </template>
+        </template>
+      </Table>
+    </Card>
+
     <Modal
       v-model:open="modalOpen"
       :confirm-loading="saving"
@@ -294,3 +457,13 @@ onMounted(loadData);
     </Modal>
   </Page>
 </template>
+
+<style scoped>
+.snapshot-cell {
+  max-height: 8rem;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+</style>

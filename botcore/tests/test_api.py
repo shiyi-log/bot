@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from botcore.models import BotSettings, TelegramBot, TelegramGroup, TelegramGroupMember, TelegramUser, TronAddress
+from botcore.models import BotSettings, TelegramBot, TelegramGroup, TelegramGroupMember, TelegramUser, TronAddress, TronAlert
 
 VALID_ADDRESS = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
 
@@ -136,6 +136,27 @@ class ApiContractTests(TestCase):
         with patch.dict(os.environ, {"ENABLE_TRON_NETWORK": "0"}, clear=False):
             response = self.client.post(f"/api/tron/addresses/{created.id}/check/")
         self.assertEqual(response.status_code, 503)
+
+    def test_tron_alerts_are_read_only_searchable_and_filterable(self):
+        address = TronAddress.objects.create(address=VALID_ADDRESS, label="Treasury")
+        TronAlert.objects.create(
+            address=address,
+            alert_type=TronAlert.Type.AUTHORIZATION_CHANGED,
+            tx_id="approval-tx",
+            current_value={"spender_address": VALID_ADDRESS, "amount_raw": "7"},
+        )
+
+        response = self.client.get("/api/tron/alerts/", {
+            "address": address.id,
+            "alert_type": TronAlert.Type.AUTHORIZATION_CHANGED,
+            "search": "Treasury",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["address_value"], VALID_ADDRESS)
+        self.assertEqual(response.data["results"][0]["address_label"], "Treasury")
+        self.assertEqual(self.client.post("/api/tron/alerts/", {}, format="json").status_code, 405)
 
     def test_group_member_list_can_be_filtered_by_group(self):
         user = TelegramUser.objects.create(telegram_id=100, username="speaker")

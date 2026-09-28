@@ -2,6 +2,9 @@
 
 ## 未发布
 
+- 新增 TRON 资源、授权与账户权限变动提醒：轮询 Energy/Bandwidth 资源基线并比较变化，扫块器解析成功的标准 TRC20 `approve` 与 `AccountPermissionUpdateContract`，链上提醒幂等落库且保持只读。
+- 新增只读 `/api/tron/alerts/` 和 TRON 管理页提醒列表，支持类型/地址/区块筛选、搜索、分页以及前后快照展示；当前不向 Telegram 外发提醒。
+- 新增仅限可信 `main` 手动触发的一次性 macOS ARM64 自托管验收工作流；普通推送和 Pull Request 继续使用 GitHub 托管 Runner。
 - README 新增项目技术栈说明，列出 Django/DRF、Telegram/Telethon、TRONGrid、Vue/Vben、Node/pnpm 和 CI 验收工具链。
 - 新增 GitHub Actions 双任务离线 CI：在 `main` 推送、拉取请求和手动触发时，使用带 `repo-bot` 标签的 Linux x64 自托管 Runner 检查 Django 测试/迁移与 Vben 类型/构建。
 - CI 使用锁定依赖、只读仓库权限和明确关闭的 Telegram/TRON 网络开关；不加载业务密钥，也不执行真实外部服务请求。

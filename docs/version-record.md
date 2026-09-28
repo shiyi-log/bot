@@ -1,5 +1,17 @@
 # 版本记录
 
+## 未发布 — TRON 资源、授权与权限变动提醒
+
+TRON 地址轮询新增账户资源快照：首次检查只建立 Energy/Bandwidth 基线，后续差异写入 `resource_changed` 提醒。确认区块扫描只接受明确全部 `SUCCESS` 的交易，并解析标准 TRC20 `approve(address,uint256)` 为 `authorization_changed`、解析 `AccountPermissionUpdateContract` 为 `permission_changed`；授权 `uint256` 以十进制字符串保存避免前端精度丢失，权限类型保留 Owner/Witness/Active 语义，链上提醒按地址、类型、交易 ID 和合约索引幂等。
+
+扫块器以区块为单位将事件、提醒、权限快照和游标推进放入同一事务。SQLite 使用按数据库区分的 Unix 文件锁串行化扫描进程，支持行锁的数据库使用 `select_for_update`，避免并发扫描回退游标或覆盖较新的权限快照。
+
+新增只读 `GET /api/tron/alerts/`，TRON 地址管理页同步提供类型筛选、搜索、分页和前后 JSON 快照。当前提醒是数据库与管理页记录，不向 Telegram 聊天外发；项目仍不包含私钥、签名、转账、链上授权或支付执行。
+
+新增 `.github/workflows/self-hosted-acceptance.yml`：只允许仓库 `main` 手动触发，使用带 `repo-bot-acceptance` 标签的一次性 macOS ARM64 自托管 Runner，在单个作业中执行全部后端与前端离线检查。普通 CI 与公开 Pull Request 继续使用 GitHub 托管 `ubuntu-latest`。
+
+本地验证：Django 102 项测试、系统检查、迁移漂移检查、Vben typecheck 与 production build 均通过；真实 TRONGrid、Telegram 与生产环境未调用。自托管 GitHub Actions run ID 在工作流实际完成后补记。
+
 ## 2026-09-29 — README 技术栈说明
 
 README 新增“技术栈”章节，依据 `pyproject.toml`、前端 `package.json`、`.node-version` 和现有 CI 工作流，说明后端、Telegram、TRON、前端、工程化与质量保障组件。

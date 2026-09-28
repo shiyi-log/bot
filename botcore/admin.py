@@ -9,6 +9,9 @@ from .models import (
     TelegramGroupMember,
     TelegramUser,
     TronAddress,
+    TronAlert,
+    TronBlockCursor,
+    TronTransferEvent,
 )
 
 admin.site.register([
@@ -20,4 +23,7 @@ admin.site.register([
     TelegramGroupMember,
     BotSettings,
     TronAddress,
+    TronAlert,
+    TronBlockCursor,
+    TronTransferEvent,
 ])

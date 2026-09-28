@@ -15,6 +15,7 @@ Work from the repository root. Keep Django at the root and Vben under `frontend/
 4. Treat Telegram IDs as 64-bit values. Persist only public update fields needed by the application.
 5. Create or refresh group membership only from normal content messages in groups and supergroups. Do not infer membership from join/service updates, private chats, channels, or anonymous `sender_chat` messages.
 6. Keep TRON polling read-only. Do not add signing, transfers, private keys, wallet authorization, or payment execution to this starter.
+   Resource monitoring may persist Energy/Bandwidth baselines and change alerts. The block scanner may parse successful standard TRC20 `approve` calls and `AccountPermissionUpdateContract` values into a read-only alert feed, but it must never submit either operation.
 7. Use `[IP]:8010` for Django and `[IP]:5173` for Vben development so this project does not collide with neighboring workspaces.
 8. Add focused backend tests for bot/runtime changes. Run frontend typecheck and build for UI/API changes.
 9. Record user-visible changes in `CHANGELOG.md` and `docs/version-record.md`.
@@ -46,5 +47,6 @@ pnpm --filter @vben/web-antd build
 - Keep account login state resumable across `code_sent` and `password_required`, but do not run session checks against those temporary states.
 - Keep welcome messages and URL inline buttons scoped per bot. Attach buttons only to `/start` and welcome messages.
 - Start TRON polling only with `ENABLE_TRON_NETWORK=1`, a configured API key, and `tron_monitor_enabled=true`.
+- Treat the first resource snapshot as a silent baseline. Keep chain alerts idempotent and expose them through the read-only `/api/tron/alerts/` contract. No Telegram alert recipient is configured by default.
 - Distinguish fake/local validation from real Telegram or TRON verification in every report.
 - Replace DRF `AllowAny` before any production deployment.

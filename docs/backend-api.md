@@ -81,12 +81,26 @@ Writable fields are `address`, `label`, and `enabled`. `address` must be a valid
 
 Filters: `enabled`, `status`. Search fields: `address`, `label`. Ordering fields: `created_at`, `updated_at`, `last_checked_at`, `balance_sun`.
 
+## TRON Alerts
+
+`GET /api/tron/alerts/` is a read-only paginated alert feed. Generic `POST`, `PUT`, `PATCH`, and `DELETE` are not available. Each result includes `address`, `address_value`, `address_label`, `alert_type`, optional `block_number`/`block_timestamp`/`tx_id`, `event_index`, `previous_value`, `current_value`, and `created_at`.
+
+Alert types:
+
+- `resource_changed`: `monitor_tron` stores the first Energy/Bandwidth snapshot as a silent baseline, then records later account-resource changes with before/after values.
+- `authorization_changed`: `scan_tron_blocks` records a successful standard TRC20 `approve(address,uint256)` call made by a monitored owner address. `current_value.amount_raw` is the token contract's unscaled integer encoded as a decimal string, so JavaScript clients do not lose `uint256` precision.
+- `permission_changed`: `scan_tron_blocks` records a successful `AccountPermissionUpdateContract` for a monitored address and stores normalized owner, witness, active, threshold, key, weight, and operations data.
+
+Filters: `alert_type`, numeric `address`, and `block_number`. Search covers transaction ID, monitored address, and label. Ordering fields: `created_at`, `block_number`.
+
+Alerts are persisted and displayed in the TRON address management page. This template does not currently push these alerts to a Telegram chat, because no alert-recipient contract is configured. Detection is read-only and never signs or submits a chain transaction.
+
 ## Runtime Boundaries
 
 `GET /api/tron/events/` provides a read-only paginated view of scanner events. It supports `currency`, `block_number`, `from_address`, `to_address`, and search by transaction/address.
 
 `python manage.py run_bot` requires `ENABLE_TELEGRAM_NETWORK=1` and at least one enabled bot whose configured `token_env_var` exists in the environment. It concurrently runs all eligible bots. Use repeatable `--bot-id ID` to select enabled bots. It persists the public user/group identity from updates, tracks first interaction per bot, records speaking membership per bot, supports `/start`, `/id`, and `/chatid`, welcomes a first private interaction, and welcomes new group members.
 
-`python manage.py monitor_tron` requires `ENABLE_TRON_NETWORK=1`, a configured database Key or the environment variable named by `tron_api_key_env_var`, and `tron_monitor_enabled=true`. It uses `tron_api_url`, performs read-only polling, rotates multiple keys, and retries the next key on HTTP 401. Both commands support `--once`. Without the explicit network flag they stop with an error before making a request.
+`python manage.py monitor_tron` requires `ENABLE_TRON_NETWORK=1`, a configured database Key or the environment variable named by `tron_api_key_env_var`, and `tron_monitor_enabled=true`. It uses `tron_api_url`, performs read-only balance/transaction/account-resource polling, rotates multiple keys, and retries the next key on HTTP 401. Provider failures remain isolated per monitored address. The first resource snapshot is a baseline; later Energy/Bandwidth changes create `TronAlert` records. Both commands support `--once`. Without the explicit network flag they stop with an error before making a request.
 
-`python manage.py scan_tron_blocks` is an independent read-only scanner. It requires `ENABLE_TRON_NETWORK=1` and the same API key configuration, keeps a `TronBlockCursor`, scans confirmed blocks (`--confirmations`, default 20), and stores only TRX/TRC20 USDT transfer events matching enabled monitored addresses in `TronTransferEvent`. It is idempotent by `tx_id` and `event_index`, supports bounded `--batch-size`, and performs no signing, transfer, payment, or notification action.
+`python manage.py scan_tron_blocks` is an independent read-only scanner. It requires `ENABLE_TRON_NETWORK=1` and the same API key configuration, keeps a `TronBlockCursor`, and scans confirmed blocks (`--confirmations`, default 20). Only transactions with an explicit all-`SUCCESS` result are parsed. It stores matching TRX/TRC20 USDT transfers in `TronTransferEvent`, and successful standard TRC20 approvals or account-permission updates for enabled monitored addresses in `TronAlert`. Transfers are idempotent by `tx_id` and `event_index`; chain alerts are idempotent by monitored address, alert type, `tx_id`, and `event_index`. Each block's events, alerts, permission snapshot, and cursor advance share one database transaction. SQLite scanners are additionally serialized with a database-specific Unix file lock; databases with row-lock support use `select_for_update`. The command supports bounded `--batch-size` and performs no signing, transfer, payment, authorization execution, or Telegram delivery.

@@ -12,6 +12,7 @@ from .models import (
     TelegramLoginAccount,
     TelegramUser,
     TronAddress,
+    TronAlert,
     TronTransferEvent,
 )
 from .services.tron import is_valid_tron_address
@@ -249,5 +250,19 @@ class TronTransferEventSerializer(serializers.ModelSerializer):
         fields = [
             "id", "block_number", "block_timestamp", "tx_id", "event_index", "currency",
             "contract_address", "from_address", "to_address", "amount_sun", "created_at",
+        ]
+        read_only_fields = fields
+
+
+class TronAlertSerializer(serializers.ModelSerializer):
+    address_value = serializers.CharField(source="address.address", read_only=True)
+    address_label = serializers.CharField(source="address.label", read_only=True)
+
+    class Meta:
+        model = TronAlert
+        fields = [
+            "id", "address", "address_value", "address_label", "alert_type",
+            "block_number", "block_timestamp", "tx_id", "event_index", "previous_value",
+            "current_value", "created_at",
         ]
         read_only_fields = fields
