@@ -2,6 +2,7 @@
 
 ## 未发布
 
+- README 新增项目技术栈说明，列出 Django/DRF、Telegram/Telethon、TRONGrid、Vue/Vben、Node/pnpm 和 CI 验收工具链。
 - 新增 GitHub Actions 双任务离线 CI：在 `main` 推送、拉取请求和手动触发时，使用带 `repo-bot` 标签的 Linux x64 自托管 Runner 检查 Django 测试/迁移与 Vben 类型/构建。
 - CI 使用锁定依赖、只读仓库权限和明确关闭的 Telegram/TRON 网络开关；不加载业务密钥，也不执行真实外部服务请求。
 - 针对自托管 Runner 补充 Node/pnpm 安装顺序与递归脚本 PATH 兼容处理，避免前端依赖安装阶段误报环境命令缺失。

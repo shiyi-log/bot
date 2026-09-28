@@ -16,6 +16,16 @@
 - 默认关闭 Telegram/TRON 真实网络访问，缺少显式开关或凭据时拒绝运行
 - 项目专属技能：`skills/telegram-tron-bot/`
 
+## 技术栈
+
+- 后端：Python 3.11+、Django 5.2、Django REST Framework 3.16、django-filter、SQLite（默认数据库）
+- Telegram：Telegram Bot API（自研只读 HTTP transport）、Telethon 1.43+（个人账号登录，独立开关控制）
+- TRON：TRONGrid HTTP API，只读查询账户余额、交易和区块事件；使用 Python 标准库 `urllib`，不执行签名、转账或支付
+- 安全与配置：`cryptography`/Fernet 加密 Telegram 账号敏感字段，`python-dotenv` 加载本地环境变量
+- 前端：Vue 3、Vben Admin 5.7.0、Ant Design Vue、Pinia、Vue Router、Vite、TypeScript
+- 前端工程化：pnpm 10.33.0 workspace、Node.js 22.22.0、vue-tsc、Turbo 任务编排
+- 质量保障：Django 测试、系统检查、迁移漂移检查、Vben typecheck 与生产构建；GitHub Actions 使用 GitHub 托管 `ubuntu-latest` Runner
+
 ## 本地启动
 
 一键启动（自动迁移并同时启动后端和前端）：

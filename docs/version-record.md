@@ -1,5 +1,9 @@
 # 版本记录
 
+## 2026-09-29 — README 技术栈说明
+
+README 新增“技术栈”章节，依据 `pyproject.toml`、前端 `package.json`、`.node-version` 和现有 CI 工作流，说明后端、Telegram、TRON、前端、工程化与质量保障组件。
+
 ## 2026-09-29 — 公开发布
 
 仓库已切换为公开可见，默认分支设为 `main`，仓库描述和根目录 MIT License 已补齐。公开仓库的 GitHub Actions 使用 `ubuntu-latest`，并移除原先登记的长期自托管 Runner，避免外部 Pull Request 执行在受信任主机上。
