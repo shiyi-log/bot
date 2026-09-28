@@ -49,3 +49,13 @@
 - 验证 / Verification: 待推送 `main` 后读取真实 GitHub Actions run、job、Runner 分配状态及测试退出码；失败时仅修复仓库内逻辑或工作流配置，并重新触发验证。
 - 限制 / Limits: 当前 shell 位于 macOS 工作区，无法直接读取远端 Runner 主机的 `svc.sh status`；GitHub API 可证明 Runner online/idle，但不能替代主机级资源健康检查。
 - 下一步 / Next: 提交并推送 `main`，等待两个自托管任务完成，再按日志逐项验收。
+
+## 2026-09-28 — 首次自托管 Run 结果与前端安装修复
+
+- 状态 / Status: 进行中
+- 读取 / Read: Actions run `36437350315`（commit `7ea3bdd`）及两个 job 结果；Django job `108978587027` 在自托管 Runner 上完成 97 项测试、系统检查和迁移漂移检查；Vben job `108978586876` 在 `pnpm/action-setup` 失败，GitHub 注释为 `self-installer exits with code 127`，其后的 Node、依赖、typecheck 和 build 未执行。
+- 判断 / Diagnosis: 该失败发生在 Runner 环境适配层，不是应用逻辑。自托管 Runner 不能假设 GitHub 托管镜像已预装可供 `pnpm/action-setup` 自安装器调用的 Node；原工作流先装 pnpm、后装 Node，导致 pnpm 自安装器找不到运行时。
+- 修改 / Write: `.github/workflows/ci.yml` — 前端任务改为先运行锁定 Node 22.22.0 的 `actions/setup-node`，再运行锁定 pnpm 10.33.0 的 `pnpm/action-setup`；移除 setup-node 的 pnpm cache 参数，避免在 pnpm 安装前读取不存在的命令。未改变测试命令、依赖锁定或网络开关。
+- 验证 / Verification: 首次远端 run 的 backend 已通过；前端修复待新提交触发第二次自托管 run。
+- 限制 / Limits: 当前 shell 无法直接读取 Runner 主机的 `svc.sh status`；GitHub API 仍能证明 Runner online/idle 与 job 分配。
+- 下一步 / Next: 提交并推送前端安装顺序修复，等待第二次 run 完成。
