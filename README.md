@@ -72,11 +72,17 @@ pnpm --filter @vben/web-antd build
 
 ## 持续集成
 
-`.github/workflows/ci.yml` 在向 `main` 推送、提交拉取请求或手动触发时运行两个独立任务，并路由到带 `repo-bot` 标签的 Linux x64 GitHub 自托管 Runner：
+`.github/workflows/ci.yml` 在向 `main` 推送、提交拉取请求或手动触发时运行两个独立任务，并使用 GitHub 托管的 `ubuntu-latest` Runner：
 
 - Django：Python 3.12、`uv sync --locked`、`botcore.tests`、系统检查和迁移漂移检查。
 - Vben：仓库指定的 Node 22.22.0 和 pnpm 10.33.0、冻结锁文件安装、`@vben/web-antd` 类型检查及生产构建。
 
-工作流只请求只读仓库权限，不注入业务密钥；Telegram Bot、Telegram 个人账号和 TRON 网络开关均显式关闭。自托管 Runner 仅执行无真实凭据的离线逻辑与构建，不等于真实 Telegram、TRON、浏览器或生产验收。远端当前默认分支是 `master`，因此手动触发入口需要该工作流出现在默认分支上；在此之前，`main` 推送和拉取请求仍按各自事件触发。
+工作流只请求只读仓库权限，不注入业务密钥；Telegram Bot、Telegram 个人账号和 TRON 网络开关均显式关闭。CI 仅执行无真实凭据的离线逻辑与构建，不等于真实 Telegram、TRON、浏览器或生产验收。公开仓库的外部 PR 使用 GitHub 托管 Runner，避免不受信任代码接触长期复用的自托管主机。当前默认分支为 `main`。
 
 接口契约见 `docs/backend-api.md`。群组成员采集只处理群组或超级群组中的普通内容消息；入群事件、私聊、频道消息和匿名管理员消息不会创建成员记录。当前前端使用本地开放身份、API 使用 `AllowAny` 以便模板直接运行；部署生产环境前必须同时替换为正式认证与权限策略。
+
+## 开源与安全
+
+本项目根目录代码以 MIT License 发布，详见 [`LICENSE`](LICENSE)。前端目录保留 Vben Admin 的上游 MIT License（见 [`frontend/LICENSE`](frontend/LICENSE)），第三方依赖继续遵循各自许可证。
+
+仓库不包含 Telegram Bot Token、Telegram API Hash、TRON API Key、私钥或账号会话。真实网络功能默认关闭，运行前请使用本地 `.env` 或部署平台密钥管理器配置凭据；不要把凭据写入源代码、日志、Issue 或 Pull Request。

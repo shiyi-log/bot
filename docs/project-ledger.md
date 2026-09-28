@@ -69,3 +69,12 @@
 - 验证 / Verification: 第二次 run 的 backend 已通过；前端 PATH 修复待第三次自托管 run 验证。
 - 限制 / Limits: 当前 shell 无法直接读取 Runner 主机的 `svc.sh status`；Runner API 与 Actions job 已证明分配到 `ci-runner-shiyi-bot` 且保持 online。
 - 下一步 / Next: 提交并推送递归脚本 PATH 修复，等待第三次 run 完成。
+
+## 2026-09-28 — 开源公开化准备
+
+- 状态 / Status: 进行中
+- 读取 / Read: GitHub 仓库仍为 private，默认分支为 `master`；历史安全扫描发现 `bot_manager.log` 与 `django_server.log` 的旧提交包含 Telegram Bot API Token 和运行日志。当前工作树不含这些日志，但远端历史仍可访问。
+- 修改 / Write: `.github/workflows/ci.yml` — 两个任务改回 GitHub 托管 `ubuntu-latest`，避免公开仓库的外部 PR 使用长期自托管 Runner。`README.md` — 增加开源许可证与凭据安全说明，并同步 CI 边界。`LICENSE` — 新增根目录 MIT License。`CHANGELOG.md`、`docs/version-record.md` — 记录公开化准备和历史凭据清理范围。
+- 验证 / Verification: 待创建可恢复 bundle 备份后，重写 `main`、`master`、`anniu` 的历史并移除两份日志；重写后扫描所有分支和对象中的 Telegram Token 模式，再强制推送。
+- 限制 / Limits: 不能把当前仓库声明为已安全公开，直到历史重写、远端 refs 更新和 GitHub 可见性核验全部完成。
+- 下一步 / Next: 备份、历史清理、全历史扫描、推送并切换默认分支/公开可见性。

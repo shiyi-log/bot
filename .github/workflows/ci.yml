@@ -17,7 +17,7 @@ env:
 jobs:
   backend:
     name: Django offline checks
-    runs-on: [self-hosted, Linux, X64, repo-bot]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Check out repository
@@ -45,7 +45,7 @@ jobs:
 
   frontend:
     name: Vben typecheck and build
-    runs-on: [self-hosted, Linux, X64, repo-bot]
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
       run:
