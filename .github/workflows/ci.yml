@@ -68,7 +68,10 @@ jobs:
           package_json_file: frontend/package.json
 
       - name: Install locked frontend dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          export PATH="${PNPM_HOME}:${PNPM_HOME}/bin:${PATH}"
+          command -v pnpm
+          pnpm install --frozen-lockfile
 
       - name: Typecheck Vben
         run: pnpm --filter @vben/web-antd typecheck

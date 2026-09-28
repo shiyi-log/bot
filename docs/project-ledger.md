@@ -59,3 +59,13 @@
 - 验证 / Verification: 首次远端 run 的 backend 已通过；前端修复待新提交触发第二次自托管 run。
 - 限制 / Limits: 当前 shell 无法直接读取 Runner 主机的 `svc.sh status`；GitHub API 仍能证明 Runner online/idle 与 job 分配。
 - 下一步 / Next: 提交并推送前端安装顺序修复，等待第二次 run 完成。
+
+## 2026-09-28 — 第二次自托管 Run 结果与递归 pnpm PATH 修复
+
+- 状态 / Status: 进行中
+- 读取 / Read: Actions run `36438581863`（commit `19a7600`）及失败 job `108982811928` 的完整日志；Node 与 pnpm 安装成功，依赖下载及多数 workspace postinstall 已完成，最后 `scripts/vsh` 的递归脚本报 `sh: 1: pnpm: not found`，随后 `ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL`。
+- 判断 / Diagnosis: 失败仍在前端 Runner/安装环境层，不是应用逻辑或锁文件漂移。`pnpm/action-setup` 暴露了 `PNPM_HOME`，顶层 pnpm 可执行，但递归生命周期脚本未继承该目录到 PATH。
+- 修改 / Write: `.github/workflows/ci.yml` — `pnpm install --frozen-lockfile` 改为先显式 `export PATH="${PNPM_HOME}:${PNPM_HOME}/bin:${PATH}"` 并用 `command -v pnpm` 记录解析路径，再执行同一冻结安装命令。测试、构建、依赖版本和网络开关不变。
+- 验证 / Verification: 第二次 run 的 backend 已通过；前端 PATH 修复待第三次自托管 run 验证。
+- 限制 / Limits: 当前 shell 无法直接读取 Runner 主机的 `svc.sh status`；Runner API 与 Actions job 已证明分配到 `ci-runner-shiyi-bot` 且保持 online。
+- 下一步 / Next: 提交并推送递归脚本 PATH 修复，等待第三次 run 完成。

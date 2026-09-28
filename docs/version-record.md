@@ -4,7 +4,7 @@
 
 新增 `.github/workflows/ci.yml`，将现有 Django `botcore.tests`、系统检查、迁移漂移检查与 Vben 类型检查、构建分为两个独立的 GitHub Actions 任务，并路由到带 `repo-bot` 标签的 Linux x64 自托管 Runner。Python、Node 和 pnpm 版本明确指定，依赖按锁文件安装；工作流权限只读，Telegram/TRON 业务网络开关显式关闭，不要求密钥，也不部署服务。
 
-本地对工作流运行 actionlint 静态校验，执行 97 项 Django 测试、系统检查、迁移漂移检查、Vben 类型检查与生产构建。构建保留既有 `%VITE_APP_TITLE%` 未定义警告；本次验收将以 GitHub 自托管 Runner 的真实 run 与 job 结论为准。远端当前默认分支为 `master`；在工作流进入默认分支前，手动触发入口不可用。
+针对自托管 Runner，前端任务先安装 Node，再安装 pnpm，并在冻结依赖安装时显式把 `PNPM_HOME` 注入 PATH，兼容 workspace 递归 postinstall 脚本。本地对工作流运行 actionlint 静态校验，执行 97 项 Django 测试、系统检查、迁移漂移检查、Vben 类型检查与生产构建。构建保留既有 `%VITE_APP_TITLE%` 未定义警告；本次验收将以 GitHub 自托管 Runner 的真实 run 与 job 结论为准。远端当前默认分支为 `master`；在工作流进入默认分支前，手动触发入口不可用。
 
 ## v0.5.1 - 2026-09-13
 
