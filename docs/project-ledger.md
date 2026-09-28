@@ -85,5 +85,12 @@
 - 读取 / Read: GitHub API 核对 public 可见性、`main` 默认分支、根目录许可证、Actions Runner 数量和 Secret Scanning 设置；远端分支 `main`、`master`、`anniu` 已全部接收重写后的提交。
 - 修改 / Write: 使用 `git-filter-repo --invert-paths --path bot_manager.log --path django_server.log` 重写并强制推送三个远端分支；删除仓库登记的两个自托管 Runner；工作流改为 `ubuntu-latest`；补充根目录 `LICENSE`、README 开源与安全说明、版本记录。
 - 验证 / Verification: 清理前 bundle `/Users/a399/Desktop/data/bot-pre-public-20260929.bundle` 可恢复；重写后 `git rev-list --all --objects` 不含两份日志，所有可达提交 Telegram Token/常见私钥与平台密钥扫描为 0 命中，`git fsck --full --no-reflogs --unreachable` 无不可达对象；GitHub API 显示 Runner 数量为 0。公开切换后的 CI run `36450037749` 未启动，GitHub 返回账户支付失败或 spending limit 限制，非代码失败。
-- 限制 / Limits: 公开仓库的 GitHub Actions 尚未获得一次成功的 `ubuntu-latest` 运行证据；账户计费恢复后应重新触发 `CI` workflow。历史中曾存在的 Telegram Token 已按用户授权从 Git 历史移除，但相关 BotFather Token 仍应确认已撤销/轮换。
-- 下一步 / Next: 在 GitHub Actions 计费状态恢复后重新运行 CI，并继续保持所有真实 Telegram/TRON 网络开关默认关闭。
+- 限制 / Limits: 历史中曾存在的 Telegram Token 已按用户授权从 Git 历史移除，但相关 BotFather Token 仍应确认已撤销/轮换；CI 验证范围仍是离线逻辑与构建，不包含真实 Telegram/TRON 网络。
+- 下一步 / Next: 继续保持所有真实 Telegram/TRON 网络开关默认关闭，并在后续依赖或业务变更后复用同一 CI 门禁。
+
+## 2026-09-29 — GitHub CI 公开仓库验收通过
+
+- 状态 / Status: 完成
+- 读取 / Read: Actions run `36450888753`（commit `5fc2b0b3b33247221eef384316a1a0b4a2c18b29`）及两个 job 的完整步骤状态；GitHub API 显示 run conclusion 为 `success`。
+- 验证 / Verification: `Django offline checks` job 成功执行 `uv sync --locked`、97 项 `botcore.tests`、`manage.py check` 与 `makemigrations --check --dry-run`；`Vben typecheck and build` job 成功执行 Node 22.22.0、pnpm 10.33.0、冻结依赖安装、`vue-tsc --noEmit --skipLibCheck` 和生产构建（`built in 5.94s`）。工作流级 Telegram Bot、Telegram account、TRON 网络开关均为 `0`，无真实外部网络验收。
+- 结果 / Result: 当前 CI 逻辑在 GitHub 托管 Runner 上有真实绿灯证据；此前支付状态导致的未启动 run 不再是当前阻塞。

@@ -6,7 +6,7 @@
 
 公开前使用 `git-filter-repo` 从 `main`、`master`、`anniu` 可达历史移除 `bot_manager.log` 和 `django_server.log`；全历史 Telegram Bot Token、常见私钥/平台密钥模式扫描为 0 命中，`git fsck --full --no-reflogs --unreachable` 无不可达对象。清理前 bundle 备份保存在本机 `/Users/a399/Desktop/data/bot-pre-public-20260929.bundle`，不属于仓库内容。
 
-GitHub 托管 CI 的一次触发曾因账号支付状态被 GitHub 拒绝启动；代码公开不依赖该次运行结论，需在账户计费恢复后重新检查工作流。
+GitHub Actions run `36450888753`（commit `5fc2b0b`）已在 GitHub 托管 `ubuntu-latest` 上通过：Django 97 tests、system check、迁移漂移检查，以及 Vben 依赖安装、typecheck 和生产构建全部成功。构建仅保留既有插件耗时和 `%VITE_APP_TITLE%` 环境变量提示，不影响退出码。
 
 ## 未发布 — 离线 CI
 
