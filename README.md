@@ -94,6 +94,8 @@ pnpm --filter @vben/web-antd build
 
 接口契约见 `docs/backend-api.md`。群组成员采集只处理群组或超级群组中的普通内容消息；入群事件、私聊、频道消息和匿名管理员消息不会创建成员记录。当前前端使用本地开放身份、API 使用 `AllowAny` 以便模板直接运行；部署生产环境前必须同时替换为正式认证与权限策略。
 
+重装系统前的代码备份、机密数据分离及重装后恢复步骤见 [`docs/reinstall-recovery.md`](docs/reinstall-recovery.md)。GitHub 和 Git bundle 不包含本地 `.env` 或数据库，重装前须另行校验独立介质上的备份。
+
 ## 开源与安全
 
 本项目根目录代码以 MIT License 发布，详见 [`LICENSE`](LICENSE)。前端目录保留 Vben Admin 的上游 MIT License（见 [`frontend/LICENSE`](frontend/LICENSE)），第三方依赖继续遵循各自许可证。

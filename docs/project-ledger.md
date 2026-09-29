@@ -94,3 +94,29 @@
 - 读取 / Read: Actions run `36450888753`（commit `5fc2b0b3b33247221eef384316a1a0b4a2c18b29`）及两个 job 的完整步骤状态；GitHub API 显示 run conclusion 为 `success`。
 - 验证 / Verification: `Django offline checks` job 成功执行 `uv sync --locked`、97 项 `botcore.tests`、`manage.py check` 与 `makemigrations --check --dry-run`；`Vben typecheck and build` job 成功执行 Node 22.22.0、pnpm 10.33.0、冻结依赖安装、`vue-tsc --noEmit --skipLibCheck` 和生产构建（`built in 5.94s`）。工作流级 Telegram Bot、Telegram account、TRON 网络开关均为 `0`，无真实外部网络验收。
 - 结果 / Result: 当前 CI 逻辑在 GitHub 托管 Runner 上有真实绿灯证据；此前支付状态导致的未启动 run 不再是当前阻塞。
+
+## 2026-09-29T13:38:00+08:00 — 重装系统前的代码与恢复资料基线
+
+- 状态 / Status: 进行中；对应 UTC `2026-09-29T05:38:00Z`，时钟为本机 `Asia/Shanghai`（UTC+08:00）。
+- 目标 / Goal: 核对并推送本仓库、留下离线 Git 恢复点和重装后的最小恢复步骤；不把本机密钥、会话、数据库或配置提交到公开仓库，也不执行系统抹盘。
+- 基线 / Baseline: 本仓库的 `main` 为 `4f8bf71f73ea2f64b9ff290d238d48a6ea689a75`；开始时工作树干净，`git fetch --prune origin`、`git ls-remote --heads origin` 证实 `main`、`anniu`、`master` 均与远端一致；`git push origin main` 返回 `Everything up-to-date`。本机另有被忽略的零字节 `db.sqlite3`、`.venv/`、`frontend/node_modules/`；根目录 `.env` 不存在。无外接备份卷，Time Machine 未配置目的地。
+- 读取 / Read: `README.md`、`docs/backend-api.md`、`skills/telegram-tron-bot/SKILL.md`、`AGENTS.md` — 项目结构、只读/默认断网边界与文档要求；`CHANGELOG.md`、`docs/version-record.md`、`docs/project-ledger.md` — 现有记录；`.gitignore`、`.env.example`、`config/settings.py` — 受忽略文件、配置来源、SQLite 和加密密钥依赖；`pyproject.toml`、`frontend/.node-version`、`frontend/package.json`、`scripts/start-dev.sh` — Python/Node/pnpm 版本和重建命令；`git status`、分支/远端引用、忽略文件元数据、`tmutil`、`/Volumes` — 当前恢复边界。敏感配置只读取元数据/路径，未输出原值。
+- 范围 / Scope: 写入简短的公开仓库恢复指南、README 入口、变更/版本记录和本台账；生成仓库外 Git bundle、校验和及本机清单。既有源码/API、真实 Telegram/TRON、系统配置、凭据和其他目录均不修改。
+- 修改 / Write: 仓库外 `bot-pre-reinstall-20260929.bundle` — `git bundle create --all` 创建完整历史备份，可删除本次生成文件回退；相邻 `.sha256` 和 `-manifest.txt` — 只记录散列、引用及需单独保管的本机路径，不记录凭据原值；`docs/project-ledger.md` — 追加本条基线，可用新提交回退本次增量。完成文档/提交后将重新生成并验证最终 bundle 与清单。
+- 验证 / Verification: `git bundle verify` → 0，包含 `main`、`anniu`、`master` 等 8 个引用及完整历史；初始 SHA-256 `88b8600c0c6c0ba221d8e320e3667fc0b69c949415ffa5982086f3610d492594`。`git fsck --full --no-reflogs --unreachable` → 0、无输出；`git diff --check` → 0。以上是本机和远端 Git 证据，不是异机备份或业务运行验收。
+- 时间逻辑 / Time logic: 仅以系统时钟/显式 UTC 偏移记录备份顺序，不解析业务时间；无调度、重试、过期或夏令时边界，重装前需再次确认最新提交和备份校验。
+- 利用 / Reuse: GitHub 是代码主恢复源，bundle 是离线备份；被忽略文件和机密需用户在加密外部介质单独保管。旧的公开化前 bundle 含曾被清理的历史日志，不应上传公开网盘或并入新仓库。
+- 限制 / Limits: 当前所有备份文件仍位于待重装电脑，不能视为抗抹盘备份；没有验证外部副本。同级其他项目的只读状态扫描发现多个工作树有未提交变更，另有一个项目领先远端 3 个提交；这些项目不属于本次提交范围，未对其执行写入或推送。尚未执行新文档的提交/推送或 CI。
+- 下一步 / Next: 完成恢复指南与版本记录，验证后提交推送，再重建最终 bundle/散列并提醒用户做异机复制与核对。
+
+## 2026-09-29T13:49:00+08:00 — 恢复指南与离线验证
+
+- 状态 / Status: 进行中；对应 UTC `2026-09-29T05:49:00Z`，时钟为本机 `Asia/Shanghai`（UTC+08:00）。
+- 目标 / Goal: 公开记录本仓库代码与本地环境的恢复边界，不公开本机凭据、私钥或其他项目细节。
+- 读取 / Read: `config/settings.py`、`botcore/crypto.py` 和测试 — `CONFIG_ENCRYPTION_KEY` 缺失时使用 `SECRET_KEY` 派生 Fernet 密钥，旧数据库恢复依赖原密钥；`frontend/.node-version`、`frontend/package.json`、`pyproject.toml`、`scripts/start-dev.sh` — Node/pnpm/Python 要求、默认端口和启动即迁移行为；`.github/workflows/ci.yml` — 三个真实网络开关在离线 CI 中均关闭；`git diff`、`git status` — 改动仅为本次文档。
+- 修改 / Write: `docs/reinstall-recovery.md` — 新建恢复指南，区分代码、数据库、密钥和整机备份，规定独立介质校验、恢复顺序与离线验证；`README.md` — 加入指南入口；`CHANGELOG.md`、`docs/version-record.md` — 记录本次可见文档变更；`docs/project-ledger.md` — 补充写入与验证证据；仓库外本机 `-manifest.txt` — 追加其他项目只读状态和敏感路径提醒。上述文档可通过反向应用本次提交回退；仓库外清单可单独更新/归档，未复制凭据原值。
+- 验证 / Verification: `ENABLE_TELEGRAM_NETWORK=0 ENABLE_TELEGRAM_ACCOUNT_NETWORK=0 ENABLE_TRON_NETWORK=0 uv run --no-sync python manage.py test botcore.tests` → 0，104 项离线测试通过；相同环境下 `python manage.py check` → 0，零问题；`makemigrations --check --dry-run` → 0，无模型变化；`bash -n scripts/start-dev.sh` → 0；`git diff --check` → 0；所有指南引用的仓库文件/锁文件存在。未运行真实 Telegram/TRON、前端构建、生产或数据恢复验收。
+- 时间逻辑 / Time logic: 文档只规定备份与恢复顺序，不实现时间解析；备份日期按 `Asia/Shanghai` 明确偏移，跨设备以 SHA-256 和 Git commit/ref 校验而非文件修改时间判断版本。
+- 利用 / Reuse: 重装时从公开仓库克隆并按指南安装锁定依赖；若远端不可用，可使用最终 Git bundle，但被忽略数据和机密必须单独从安全备份恢复。文档回退不恢复被抹盘的数据。
+- 限制 / Limits: GitHub 推送、CI 和外部介质复制尚待完成；清单与 bundle 仍留在待重装电脑，尚无整机备份。其他项目存在未提交/未推送状态，本任务未改动它们。
+- 下一步 / Next: 提交推送本文档，重建最终 Git bundle 并校验；抹盘前由用户把所有需要的资料备份到独立介质并验证。

@@ -1,5 +1,9 @@
 # 版本记录
 
+## 2026-09-29 — 重装系统恢复准备
+
+新增 `docs/reinstall-recovery.md` 并在 README 提供入口。恢复步骤区分公开 Git 代码、被忽略的本地配置与数据库、机密/加密密钥及整机其他资料；重装前必须将备份移出待抹盘电脑，在目标介质核对 SHA-256。本项只是恢复文档与备份准备，不包含整机备份、真实业务数据迁移或生产验收。
+
 ## 未发布 — TRON 资源、授权与权限变动提醒
 
 TRON 地址轮询新增账户资源快照：首次检查只建立 Energy/Bandwidth 基线，后续差异写入 `resource_changed` 提醒。确认区块扫描只接受明确全部 `SUCCESS` 的交易，并解析标准 TRC20 `approve(address,uint256)` 为 `authorization_changed`、解析 `AccountPermissionUpdateContract` 为 `permission_changed`；授权 `uint256` 以十进制字符串保存避免前端精度丢失，权限类型保留 Owner/Witness/Active 语义，链上提醒按地址、类型、交易 ID 和合约索引幂等。
